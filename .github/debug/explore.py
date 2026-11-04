@@ -1,36 +1,45 @@
-"""Temporary: round 3, EP plenary verbatim XML on data.europarl.europa.eu."""
-import json, re, urllib.parse, urllib.request, urllib.error
-from collections import Counter
+"""Temporary: round 4, EP INTERVENTION structure; GDELT static files."""
+import gzip, io, json, re, urllib.request, urllib.error, datetime as dt
 
 UA = {"User-Agent": "qv-observatory/0.2 (research; github.com/guilhermegfmachado/qv-observatory)"}
 
-def get(url, headers=None):
-    req = urllib.request.Request(url, headers={**UA, **(headers or {})})
+def get(url):
+    req = urllib.request.Request(url, headers=UA)
     try:
         with urllib.request.urlopen(req, timeout=120) as r:
-            return r.status, r.geturl(), r.headers.get("Content-Type"), r.read()
+            return r.status, r.headers.get("Content-Type"), r.read()
     except urllib.error.HTTPError as e:
-        return e.code, url, e.headers.get("Content-Type"), e.read()
+        return e.code, e.headers.get("Content-Type"), e.read()
     except Exception as e:
-        return 0, url, None, str(e).encode()
+        return 0, None, str(e).encode()
 
-for u in ["https://data.europarl.europa.eu/distribution/doc/CRE-10-2024-07-16_mul.xml",
-          "https://data.europarl.europa.eu/api/v2/distribution/doc/CRE-10-2024-07-16_mul.xml"]:
-    st, url, ct, body = get(u)
-    print(f"\n### {u}\n{st} {ct} {len(body)} {url}")
-    if st == 200:
-        t = body.decode("utf-8", "replace")
-        print(t[:1500])
-        tags = Counter(re.findall(r"<([A-Za-z][\w.-]*)", t))
-        print("TAGS", tags.most_common(40))
-        print("LANG ATTRS", Counter(re.findall(r'(?:xml:)?lang(?:uage)?="([^"]+)"', t)).most_common(30))
-        i = t.find("resilien")
-        print("SNIPPET", t[max(0, i - 1500):i + 300] if i > 0 else t[20000:22000])
-        break
+st, ct, b = get("https://data.europarl.europa.eu/distribution/doc/CRE-10-2024-07-16_mul.xml")
+t = b.decode("utf-8", "replace")
+i = t.find("<INTERVENTION")
+print("### INTERVENTION 1\n", t[i:i + 2500])
+j = t.find("<INTERVENTION", i + 10)
+print("### INTERVENTION 2\n", t[j:j + 1200])
+print("### LG values", sorted(set(re.findall(r"<LG[^>]*>\s*([^<]*)<", t)))[:40])
+print("### CHAPTER head\n", t[t.find("<CHAPTER"):t.find("<CHAPTER") + 600])
 
-st, url, ct, body = get("https://data.europarl.europa.eu/api/v2/plenary-session-documents?" + urllib.parse.urlencode(
-    {"year": "2025", "work-type": "CRE_PLENARY", "format": "application/ld+json", "limit": "5"}), {"Accept": "application/ld+json"})
-print("\n### list year=2025", st, len(body), body[:800].decode("utf-8", "replace"))
-st, url, ct, body = get("https://data.europarl.europa.eu/api/v2/plenary-session-documents?" + urllib.parse.urlencode(
-    {"format": "application/ld+json", "limit": "5", "offset": "2000"}), {"Accept": "application/ld+json"})
-print("\n### list offset=2000", st, len(body), body[:800].decode("utf-8", "replace"))
+now = dt.datetime.utcnow().replace(second=0, microsecond=0) - dt.timedelta(hours=3)
+stamp = now.strftime("%Y%m%d%H%M00")
+for u in [f"http://data.gdeltproject.org/gdeltv3/webngrams/{stamp}.webngrams.json.gz",
+          "http://data.gdeltproject.org/gdeltv2/lastupdate.txt"]:
+    st, ct, body = get(u)
+    print(f"\n### {u}\n{st} {ct} {len(body)}")
+    if st == 200 and u.endswith(".gz"):
+        lines = gzip.decompress(body).decode("utf-8", "replace").splitlines()
+        print("lines", len(lines))
+        for l in lines[:3]:
+            print(l[:600])
+        langs = {}
+        for l in lines:
+            try:
+                o = json.loads(l)
+            except Exception:
+                continue
+            langs[o.get("lang")] = langs.get(o.get("lang"), 0) + 1
+        print("langs", sorted(langs.items(), key=lambda x: -x[1])[:12])
+    elif st == 200:
+        print(body[:500].decode())
