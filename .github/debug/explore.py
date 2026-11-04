@@ -1,36 +1,63 @@
-"""Temporary: check candidate parliament and news APIs from CI."""
-import json, re, urllib.parse, urllib.request, urllib.error
+"""Temporary: second round on EP API, GDELT pacing, ParlaMint links."""
+import json, re, time, urllib.parse, urllib.request, urllib.error
 
 UA = {"User-Agent": "qv-observatory/0.2 (research; github.com/guilhermegfmachado/qv-observatory)"}
 
-def get(url, headers=None):
-    req = urllib.request.Request(url, headers={**UA, **(headers or {})})
+def get(url, headers=None, method="GET"):
+    req = urllib.request.Request(url, headers={**UA, **(headers or {})}, method=method)
     try:
-        with urllib.request.urlopen(req, timeout=60) as r:
-            return r.status, r.geturl(), r.headers.get("Content-Type"), r.read()
+        with urllib.request.urlopen(req, timeout=90) as r:
+            return r.status, r.geturl(), r.headers, r.read()
     except urllib.error.HTTPError as e:
-        return e.code, url, e.headers.get("Content-Type"), e.read()
+        return e.code, url, e.headers, e.read()
     except Exception as e:
-        return 0, url, None, str(e).encode()
+        return 0, url, {}, str(e).encode()
 
-def show(label, url, headers=None, n=700):
-    st, u, ct, body = get(url, headers)
-    print(f"\n### {label}\n{st} {ct} {len(body)} {u}\n{body[:n].decode('utf-8','replace')}")
+def show(label, url, headers=None, n=3000):
+    st, u, hd, body = get(url, headers)
+    print(f"\n### {label}\n{st} {hd.get('Content-Type') if hd else None} {len(body)} {u}\n{body[:n].decode('utf-8','replace')}")
     return st, body
 
-G = "https://api.gdeltproject.org/api/v2/doc/doc?"
-show("GDELT timelinevolraw 3mo en", G + urllib.parse.urlencode({"query": "resilience sourcelang:english", "mode": "timelinevolraw", "format": "json", "timespan": "3months"}), n=500)
-show("GDELT timelinevolraw 2017 en", G + urllib.parse.urlencode({"query": "resilience sourcelang:english", "mode": "timelinevolraw", "format": "json", "startdatetime": "20170101000000", "enddatetime": "20170301000000"}), n=500)
-show("GDELT timelinevolraw pt", G + urllib.parse.urlencode({"query": "resiliência sourcelang:portuguese", "mode": "timelinevolraw", "format": "json", "timespan": "1month", "timelinesmooth": "0"}), n=500)
-show("GDELT artlist fr", G + urllib.parse.urlencode({"query": "résilience sourcelang:french", "mode": "artlist", "format": "json", "maxrecords": "3", "timespan": "1week"}), n=600)
-
+LD = {"Accept": "application/ld+json"}
 E = "https://data.europarl.europa.eu/api/v2/"
-show("EP speeches", E + "speeches?" + urllib.parse.urlencode({"format": "application/ld+json", "limit": "3", "offset": "0"}), {"Accept": "application/ld+json"})
-show("EP meetings 2025", E + "meetings?" + urllib.parse.urlencode({"year": "2025", "format": "application/ld+json", "limit": "3"}), {"Accept": "application/ld+json"})
-show("EP plenary-session-documents", E + "plenary-session-documents?" + urllib.parse.urlencode({"format": "application/ld+json", "limit": "3"}), {"Accept": "application/ld+json"})
-st, body = show("doceo CRE html", "https://www.europarl.europa.eu/doceo/document/CRE-10-2025-01-20_EN.html", n=300)
-if st == 200:
-    t = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", body.decode("utf-8", "replace")))
-    print("doceo text chars:", len(t), t[2000:2400])
-show("doceo CRE xml", "https://www.europarl.europa.eu/doceo/document/CRE-10-2025-01-20_EN.xml", n=300)
-show("CLARIN ParlaMint handle", "https://www.clarin.si/repository/xmlui/handle/11356/1912", n=200)
+st, b = show("EP speeches 1 full", E + "speeches?" + urllib.parse.urlencode({"format": "application/ld+json", "limit": "1", "offset": "200"}), LD, 6000)
+show("EP speech by id", E + "speeches/MTG-PL-2024-01-17-OTH-32020000?format=application%2Fld%2Bjson", LD, 4000)
+st, b = show("EP CRE doc", E + "plenary-session-documents/CRE-10-2024-07-16?format=application%2Fld%2Bjson", LD, 5000)
+urls = sorted(set(re.findall(rb'https?://[^"\s]+', b)))
+print("URLs in CRE doc:", [u.decode() for u in urls][:40])
+for u in urls:
+    us = u.decode()
+    if any(x in us for x in (".xml", ".html", ".pdf", ".docx", "download", "/doc/")) and "europarl.europa.eu/doceo" not in us:
+        st2, _, hd2, body2 = get(us)
+        print("  try", st2, hd2.get("Content-Type") if hd2 else None, len(body2), us)
+
+G = "https://api.gdeltproject.org/api/v2/doc/doc?"
+for label, params in [
+    ("GDELT 3mo en", {"query": "resilience sourcelang:english", "mode": "timelinevolraw", "format": "json", "timespan": "3months", "timelinesmooth": "0"}),
+    ("GDELT 2017 en", {"query": "resilience sourcelang:english", "mode": "timelinevolraw", "format": "json", "startdatetime": "20170101000000", "enddatetime": "20170301000000"}),
+    ("GDELT 2y en", {"query": "resilience sourcelang:english", "mode": "timelinevolraw", "format": "json", "startdatetime": "20240101000000", "enddatetime": "20241231000000"}),
+    ("GDELT OR pt", {"query": "(resiliência OR resiliente) sourcelang:portuguese", "mode": "timelinevolraw", "format": "json", "timespan": "1month"}),
+]:
+    time.sleep(7)
+    st, body = show(label, G + urllib.parse.urlencode(params), n=600)
+    if st == 200 and body.strip():
+        try:
+            d = json.loads(body)
+            for s in d.get("timeline", []):
+                pts = s.get("data", [])
+                print("  series", s.get("series"), len(pts), "points; first", pts[:1], "last", pts[-1:])
+        except Exception as e:
+            print("  parse error", e)
+
+st, b = get("https://www.clarin.si/repository/xmlui/handle/11356/1912")[0:4:3] if False else (None, None)
+st, u, hd, body = get("https://www.clarin.si/repository/xmlui/handle/11356/1912")
+t = body.decode("utf-8", "replace")
+title = re.search(r"<title>(.*?)</title>", t, re.S)
+print("\n### ParlaMint handle title:", title and title[1].strip())
+links = sorted(set(re.findall(r'href="([^"]*ParlaMint-(?:PT|NL|FR|BE|GB)[^"]*)"', t)))
+print("links:", links[:30])
+for l in links:
+    if l.endswith(".tgz") and ".txt" in l:
+        full = urllib.parse.urljoin("https://www.clarin.si", l)
+        st, _, hd, _ = get(full, method="HEAD")
+        print("  HEAD", st, hd.get("Content-Length") if hd else None, full)
