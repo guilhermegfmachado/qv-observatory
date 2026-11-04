@@ -1,9 +1,10 @@
+# Checks live sources whenever ingestion code changes on a branch, so fixes are verified before merge.
 name: probe
 
 on:
   push:
     branches-ignore: [main]
-    paths: ["observatory/ingest/**", "observatory/probe.py", ".github/workflows/probe.yml", ".github/debug/**"]
+    paths: ["observatory/ingest/**", "observatory/probe.py", ".github/workflows/probe.yml"]
   workflow_dispatch:
 
 jobs:
@@ -14,7 +15,4 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
-      - name: Debug
-        if: hashFiles('.github/debug/eurlex_text.py') != ''
-        run: python .github/debug/eurlex_text.py
-      - run: python -m observatory probe eurlex
+      - run: for l in en fr nl pt; do python -m observatory probe eurlex --lang $l || exit 1; done
