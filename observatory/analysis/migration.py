@@ -55,7 +55,8 @@ def run(con: sqlite3.Connection, cfg: dict) -> dict:
     max_lag = acfg["max_lag_months"] if gran == "month" else max(1, acfg["max_lag_months"] // 12)
     domains = list(cfg["domains"])
 
-    bounds = con.execute("SELECT MIN(date), MAX(date) FROM documents").fetchone()
+    bounds = con.execute("SELECT MIN(d), MAX(d) FROM (SELECT date AS d FROM documents"
+                         " UNION ALL SELECT date FROM counts)").fetchone()
     if not bounds[0]:
         return {"periods": [], "concepts": {}}
     periods = _period_range(_period(bounds[0], gran), _period(bounds[1], gran), gran)
@@ -65,6 +66,10 @@ def run(con: sqlite3.Connection, cfg: dict) -> dict:
     for row in con.execute("SELECT domain, date FROM documents"):
         if row["domain"] in totals:
             totals[row["domain"]][idx[_period(row["date"], gran)]] += 1
+    # Aggregate sources: the day's total is the same for every concept, so take it once per language.
+    for row in con.execute("SELECT domain, date, MAX(total) AS t FROM counts GROUP BY domain, lang, date"):
+        if row["domain"] in totals:
+            totals[row["domain"]][idx[_period(row["date"], gran)]] += row["t"]
 
     out = {"granularity": gran, "periods": periods,
            "documents": {d: totals[d] for d in domains}, "concepts": {}}
@@ -75,6 +80,10 @@ def run(con: sqlite3.Connection, cfg: dict) -> dict:
             " WHERE m.concept=?", (key,)):
             if row["domain"] in hits:
                 hits[row["domain"]][idx[_period(row["date"], gran)]] += 1
+        for row in con.execute("SELECT domain, date, SUM(hits) AS h FROM counts WHERE concept=?"
+                               " GROUP BY domain, date", (key,)):
+            if row["domain"] in hits:
+                hits[row["domain"]][idx[_period(row["date"], gran)]] += row["h"]
 
         series, onsets = {}, {}
         for d in domains:

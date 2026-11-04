@@ -40,6 +40,18 @@ CREATE TABLE IF NOT EXISTS triples (
 );
 CREATE INDEX IF NOT EXISTS ix_triples_concept ON triples(concept);
 
+-- Aggregate sources (GDELT): per-day matching items and the total they are a share of.
+CREATE TABLE IF NOT EXISTS counts (
+    source  TEXT NOT NULL,        -- gdelt
+    domain  TEXT NOT NULL,
+    concept TEXT NOT NULL,
+    lang    TEXT NOT NULL,
+    date    TEXT NOT NULL,        -- YYYY-MM-DD
+    hits    INTEGER NOT NULL,
+    total   INTEGER NOT NULL,
+    PRIMARY KEY (source, concept, lang, date)
+);
+
 CREATE TABLE IF NOT EXISTS oie_cache (
     key      TEXT PRIMARY KEY,     -- sha1(prompt_version + model + sentence)
     response TEXT NOT NULL

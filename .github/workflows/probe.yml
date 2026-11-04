@@ -4,7 +4,7 @@ name: probe
 on:
   push:
     branches-ignore: [main]
-    paths: ["observatory/ingest/**", "observatory/probe.py", ".github/workflows/probe.yml", ".github/debug/**"]
+    paths: ["observatory/ingest/**", "observatory/probe.py", "config/**", ".github/workflows/probe.yml", ".github/debug/**"]
   workflow_dispatch:
 
 jobs:
@@ -19,3 +19,4 @@ jobs:
         if: hashFiles('.github/debug/explore.py') != ''
         run: python .github/debug/explore.py
       - run: for l in en fr nl pt; do python -m observatory probe eurlex --lang $l || exit 1; done
+      - run: for l in en fr nl pt; do sleep 6; python -m observatory probe gdelt --lang $l || exit 1; done

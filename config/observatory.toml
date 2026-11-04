@@ -103,3 +103,47 @@ fr = 'polycrises?'
 de = 'polykrisen?'
 es = 'policrisis'
 it = 'policrisi'
+
+# GDELT news volume: plain terms joined by " OR " (GDELT has no wildcards or regexes).
+# Languages: en, fr, nl, pt. Multi-word phrases are quoted automatically.
+[concepts.resilience.gdelt]
+en = "resilience OR resilient"
+fr = "résilience OR résilient"
+nl = "veerkracht OR weerbaarheid"
+pt = "resiliência OR resiliente"
+
+[concepts.community.gdelt]
+en = "community OR communities"
+fr = "communauté OR communautés"
+nl = "gemeenschap OR gemeenschappen"
+pt = "comunidade OR comunidades"
+
+[concepts.sustainability.gdelt]
+en = "sustainability OR sustainable"
+fr = "durabilité OR durable"
+nl = "duurzaamheid OR duurzaam"
+pt = "sustentabilidade OR sustentável"
+
+[concepts.care.gdelt]
+en = "care OR caring"
+fr = "soins OR care"
+nl = "zorg"
+pt = "cuidado OR cuidados"
+
+[concepts.inclusion.gdelt]
+en = "inclusion OR inclusive"
+fr = "inclusion OR inclusif"
+nl = "inclusie OR inclusief"
+pt = "inclusão OR inclusivo"
+
+[concepts.decolonial.gdelt]
+en = "decolonial OR decolonization OR decolonisation"
+fr = "décolonial OR décolonisation"
+nl = "dekolonisatie OR dekoloniaal"
+pt = "decolonial OR descolonização"
+
+[concepts.polycrisis.gdelt]
+en = "polycrisis"
+fr = "polycrise"
+nl = "polycrisis"
+pt = "policrise"

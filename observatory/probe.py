@@ -10,7 +10,7 @@ import datetime as dt
 from collections import Counter
 from pathlib import Path
 
-from .ingest import creative_europe, eurlex, parlamint
+from .ingest import creative_europe, eurlex, gdelt, parlamint
 
 
 def probe_eurlex(lang: str = "en", days: int = 60) -> bool:
@@ -34,6 +34,19 @@ def probe_eurlex(lang: str = "en", days: int = 60) -> bool:
     for d in docs:
         print(f"eurlex: {d.title} ({d.date}): {len(d.text)} chars: {d.text[:120]!r}")
     return bool(docs)
+
+
+def probe_gdelt(cfg: dict, lang: str = "en", days: int = 30) -> bool:
+    terms = cfg["concepts"]["resilience"]["gdelt"][lang]
+    q = gdelt.build_query(terms, lang)
+    end = dt.date.today()
+    rows = gdelt.timeline(q, (end - dt.timedelta(days=days)).isoformat(), end.isoformat())
+    if rows is None:
+        print(f"gdelt: request failed for {q!r}")
+        return False
+    hits, total = sum(r[1] for r in rows), sum(r[2] for r in rows)
+    print(f"gdelt: {q!r}: {len(rows)} days, {hits} of {total} articles")
+    return bool(rows) and total > 0
 
 
 def probe_parlamint(root: Path) -> bool:

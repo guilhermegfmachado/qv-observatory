@@ -63,6 +63,13 @@ jobs:
           done
           python -m observatory --db "$DB" status
 
+      - name: Ingest GDELT news volume
+        continue-on-error: true   # GDELT throttles shared CI addresses; it resumes next run
+        run: |
+          python -m observatory probe gdelt
+          python -m observatory --db "$DB" ingest gdelt
+          python -m observatory --db "$DB" status
+
       - name: Save corpus
         if: always()
         uses: actions/cache/save@v4

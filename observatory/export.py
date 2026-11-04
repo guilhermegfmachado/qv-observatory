@@ -20,7 +20,11 @@ def run(con: sqlite3.Connection, cfg: dict, out_path: Path, synthetic: bool = Fa
             "synthetic": synthetic,
             "domains": cfg["domains"],
             "corpus": [dict(r) for r in stats],
-            "sources": [r[0] for r in con.execute("SELECT DISTINCT source FROM documents ORDER BY 1")],
+            "counts": [dict(r) for r in con.execute(
+                "SELECT source, domain, lang, COUNT(*) AS days, SUM(hits) AS hits, MIN(date) AS first,"
+                " MAX(date) AS last FROM counts GROUP BY source, domain, lang ORDER BY 1, 3")],
+            "sources": [r[0] for r in con.execute(
+                "SELECT source FROM documents UNION SELECT source FROM counts ORDER BY 1")],
         },
         "migration": mig,
         "drift": drift.run(con, cfg),
