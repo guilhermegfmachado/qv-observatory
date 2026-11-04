@@ -1,0 +1,115 @@
+# Weekly: probe sources, ingest new EUR-Lex documents, extract, export, deploy to GitHub Pages.
+# The SQLite corpus is never committed (CLAUDE.md); it persists between runs in the Actions
+# cache. On a cache miss the incremental ingest simply backfills from 2015-01-01.
+name: pipeline
+
+on:
+  schedule:
+    - cron: "17 4 * * 1"   # Mondays 04:17 UTC
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: "EUR-Lex documents per language this run"
+        default: "1000"
+      langs:
+        description: "EUR-Lex languages, space-separated"
+        default: "en fr nl pt"
+      oie_limit:
+        description: "Sentences for triple extraction (0 = skip)"
+        default: "2000"
+
+concurrency:
+  group: pipeline
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+env:
+  DB: data/observatory.sqlite
+  LIMIT: ${{ inputs.limit || '1000' }}
+  LANGS: ${{ inputs.langs || 'en fr nl pt' }}
+  OIE_LIMIT: ${{ inputs.oie_limit || '2000' }}
+  HAS_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - run: pip install anthropic
+      - run: python -m unittest discover tests
+
+      - name: Restore corpus
+        uses: actions/cache/restore@v4
+        with:
+          path: data
+          key: corpus-${{ github.run_id }}
+          restore-keys: corpus-
+
+      - name: Probe sources
+        run: python -m observatory probe eurlex
+
+      - name: Ingest EUR-Lex
+        run: |
+          for lang in $LANGS; do
+            python -m observatory --db "$DB" ingest eurlex --incremental --lang "$lang" --limit "$LIMIT"
+          done
+          python -m observatory --db "$DB" status
+
+      - name: Save corpus
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: data
+          key: corpus-${{ github.run_id }}
+
+      - run: python -m observatory --db "$DB" mentions
+
+      - name: Extract triples
+        if: env.OIE_LIMIT != '0' && env.HAS_KEY == 'true'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          python -m observatory probe model
+          python -m observatory --db "$DB" oie --dry-run --batch --limit "$OIE_LIMIT"
+          python -m observatory --db "$DB" oie --batch --limit "$OIE_LIMIT"
+
+      - name: Save corpus with triples
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: data
+          key: corpus-${{ github.run_id }}-oie
+
+      - name: Export
+        run: |
+          python -m observatory --db "$DB" export
+          python - <<'PY'
+          import json, sys
+          meta = json.load(open("site/data/observatory.json"))["meta"]
+          if meta["synthetic"]:
+              sys.exit("refusing to publish synthetic data")
+          print("corpus:", sum(r["n"] for r in meta["corpus"]), "documents from", meta["sources"])
+          PY
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

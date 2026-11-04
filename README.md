@@ -13,6 +13,7 @@ Quick start (Python 3.11+):
     python -m observatory --db /tmp/demo/demo.sqlite export --synthetic
     cd site && python -m http.server 8000    # open http://localhost:8000
 
-The bundled `site/data/observatory.json` is synthetic test data. Replace it by ingesting
-real sources (see CLAUDE.md). Triple extraction needs `pip install anthropic` and
+The demo writes synthetic data to `site/data/observatory.json` (not tracked in git). The public
+site is built from real EUR-Lex data by the weekly `pipeline` workflow and served on GitHub Pages;
+see CLAUDE.md. Triple extraction needs `pip install anthropic` and
 `ANTHROPIC_API_KEY`.

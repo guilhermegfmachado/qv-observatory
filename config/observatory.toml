@@ -24,7 +24,8 @@ drift_top_k = 25               # neighbours compared between periods
 stopword_max_df = 0.3          # tokens in more than this share of a language's documents are stopwords
 
 [oie]
-model = "claude-haiku-5-5"     # check current model strings at docs.claude.com before large runs
+model = "claude-haiku-5-5"     # verified current 2026-11; check docs.claude.com before large runs
+effort = "low"                 # extraction needs little reasoning; part of the cache key
 prompt_version = "v1"
 batch_size = 20
 max_sentence_chars = 600
