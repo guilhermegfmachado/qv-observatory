@@ -7,8 +7,6 @@ from __future__ import annotations
 
 import csv
 import datetime as dt
-import json
-import urllib.parse
 from collections import Counter
 from pathlib import Path
 
@@ -16,32 +14,26 @@ from .ingest import creative_europe, eurlex, parlamint
 
 
 def probe_eurlex(lang: str = "en", days: int = 60) -> bool:
+    """Run the real ingestion path on a recent window: catalogue query plus full-text fetch."""
     end = dt.date.today()
     start = end - dt.timedelta(days=days)
-    q = eurlex.QUERY.format(start=start, end=end, sector="5", limit=3)
-    url = f"{eurlex.SPARQL}?{urllib.parse.urlencode({'query': q, 'format': 'application/sparql-results+json'})}"
     try:
-        rows = json.loads(eurlex._get(url, "application/sparql-results+json"))["results"]["bindings"]
+        works = eurlex.list_works(start.isoformat(), end.isoformat(), lang, limit=5)
     except Exception as exc:  # noqa: BLE001
         print(f"eurlex: SPARQL query failed: {exc}")
         return False
-    print(f"eurlex: SPARQL returned {len(rows)} rows for {start}..{end}")
-    if not rows:
-        print("eurlex: no rows; CDM property names or the date filter may have changed")
+    print(f"eurlex: {len(works)} works with {lang} HTML for {start}..{end}")
+    if not works:
+        print("eurlex: none; CDM property names, the type filter or the date filter may have changed")
         return False
-    for row in rows:
-        celex = row["celex"]["value"]
-        text_url = eurlex.TEXT_URL.format(lang=lang.upper(), celex=celex)
-        try:
-            text = eurlex._strip_html(eurlex._get(text_url))
-        except Exception as exc:  # noqa: BLE001
-            print(f"eurlex: {celex}: text fetch failed: {exc}")
-            continue
-        print(f"eurlex: {celex} ({row['date']['value'][:10]}): {len(text)} chars of text")
-        if len(text) >= 200:
-            return True
-    print("eurlex: no usable full text among the sample")
-    return False
+    try:
+        docs = list(eurlex.read(start.isoformat(), end.isoformat(), lang, limit=2))
+    except Exception as exc:  # noqa: BLE001
+        print(f"eurlex: text fetch failed: {exc}")
+        return False
+    for d in docs:
+        print(f"eurlex: {d.title} ({d.date}): {len(d.text)} chars: {d.text[:120]!r}")
+    return bool(docs)
 
 
 def probe_parlamint(root: Path) -> bool:

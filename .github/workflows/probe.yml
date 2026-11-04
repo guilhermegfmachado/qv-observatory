@@ -1,0 +1,18 @@
+# Checks live sources whenever ingestion code changes on a branch, so fixes are verified before merge.
+name: probe
+
+on:
+  push:
+    branches-ignore: [main]
+    paths: ["observatory/ingest/**", "observatory/probe.py", ".github/workflows/probe.yml"]
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - run: for l in en fr nl pt; do python -m observatory probe eurlex --lang $l || exit 1; done
