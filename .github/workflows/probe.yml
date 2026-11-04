@@ -1,0 +1,20 @@
+name: probe
+
+on:
+  push:
+    branches-ignore: [main]
+    paths: ["observatory/ingest/**", "observatory/probe.py", ".github/workflows/probe.yml", ".github/debug/**"]
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Debug
+        if: hashFiles('.github/debug/eurlex_text.py') != ''
+        run: python .github/debug/eurlex_text.py
+      - run: python -m observatory probe eurlex
