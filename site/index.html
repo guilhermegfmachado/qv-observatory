@@ -10,12 +10,13 @@
   :root:not([data-theme="light"]) { --bg: #111; --fg: #eee; --line: #666; color-scheme: dark; }
 }
 :root[data-theme="dark"] { --bg: #111; --fg: #eee; --line: #666; color-scheme: dark; }
-body { background: var(--bg); color: var(--fg); max-width: 60rem; margin: 0 auto; padding: 1rem; }
+body { background: var(--bg); color: var(--fg); font-family: "Times New Roman", Times, serif; max-width: 60rem; margin: 0 auto; padding: 1rem; }
 table { border-collapse: collapse; }
 th, td { border: 1px solid var(--line); padding: .2rem .5rem; text-align: left; vertical-align: top; }
 svg { display: block; width: 100%; max-width: 60rem; height: auto; }
-svg text { fill: var(--fg); font: 12px sans-serif; }
+svg text { fill: var(--fg); font: 13px "Times New Roman", Times, serif; }
 .scroll { overflow-x: auto; }
+select { font: inherit; }
 </style>
 </head>
 <body>
