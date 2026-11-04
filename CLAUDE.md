@@ -26,9 +26,13 @@ python -m observatory ingest folder corpus/   # <domain>/<lang>/<YYYY-MM-DD>__sl
 python -m observatory ingest parlamint downloads/ParlaMint-PT/
 python -m observatory ingest creative-europe downloads/creative-europe.csv
 python -m observatory ingest eurlex --start 2015-01-01 --end 2026-01-01 --lang en
+python -m observatory ingest eurlex --incremental --lang en   # resume from latest stored date
 python -m observatory mentions
 python -m observatory oie --dry-run           # always dry-run first: prints request count
 python -m observatory oie --limit 2000
+python -m observatory oie --batch --limit 2000  # Message Batches API: half price, async
+python -m observatory probe eurlex            # check a source's assumptions (also: parlamint DIR,
+                                              # creative-europe CSV, model)
 python -m observatory export
 cd site && python -m http.server              # preview
 ```
@@ -46,10 +50,25 @@ cd site && python -m http.server              # preview
 - Report numbers with their denominators; flag periods below `min_docs_per_period`.
 
 ## Unverified — check before relying on them
-1. `ingest/parlamint.py`: file layout of the current ParlaMint release on CLARIN.SI.
-2. `ingest/eurlex.py`: the CELLAR SPARQL query (CDM property names) and rate limits.
-3. `ingest/creative_europe.py`: column names of the current platform export.
-4. `config.oie.model`: current model string at docs.claude.com; consider the Batch API for cost.
+Each has a probe: `python -m observatory probe <source>` reports what it found and exits non-zero
+when the assumption fails.
+1. `ingest/parlamint.py`: file layout of the current ParlaMint release on CLARIN.SI
+   (`probe parlamint downloads/ParlaMint-PT/` after downloading).
+2. `ingest/eurlex.py`: the CELLAR SPARQL query (CDM property names) and rate limits
+   (`probe eurlex`; runs at the start of every weekly pipeline).
+3. `ingest/creative_europe.py`: column names of the current platform export
+   (`probe creative-europe downloads/creative-europe.csv`).
+4. `config.oie.model`: `claude-haiku-5-5` is current as of 2026-11 (`probe model`). Current models
+   reject `temperature`; extraction depth is set by `oie.effort`. Batch mode is implemented.
+
+## Deploy
+- `.github/workflows/ci.yml`: tests on every push and PR.
+- `.github/workflows/pipeline.yml`: Mondays 04:17 UTC and on demand. Probes EUR-Lex, ingests new
+  documents incrementally, runs mentions, extracts triples in batch mode if the
+  `ANTHROPIC_API_KEY` secret is set, exports, refuses to publish if `meta.synthetic`, and deploys
+  `site/` to GitHub Pages. The SQLite corpus lives in the Actions cache, never in git; on a cache
+  miss the incremental ingest backfills from 2015-01-01.
+- ParlaMint and Creative Europe are manual downloads and are not ingested in CI yet.
 
 ## Roadmap
 - v0.2 Sources: GDELT GKG (news themes), CC-News (multilingual news text), e-flux announcements
@@ -61,4 +80,3 @@ cd site && python -m http.server              # preview
 - v0.3 Lemmatisation (Stanza) so lexicons can use lemmas instead of regex stems.
 - v0.4 Forecast: which concepts are rising in policy but not yet in art (expected arrival from lag).
 - v0.4 Site: per-concept dossier pages for QV articles; Portuguese, Dutch and French interface.
-- Deploy: GitHub Pages from `site/`, weekly GitHub Action that ingests, extracts and exports.

@@ -16,17 +16,37 @@ from observatory.extract import mentions, oie  # noqa: E402
 from observatory.ingest import base, folder  # noqa: E402
 
 
-class FakeClient:
-    """Stands in for anthropic.Anthropic: makes 'resilience' the subject of every sentence."""
+def _fake_message(**kw):
+    """Makes the first word of every sentence the subject of one triple."""
+    assert "temperature" not in kw, "sampling parameters are rejected by current models"
+    lines = [l for l in kw["messages"][0]["content"].splitlines() if l[:1].isdigit() and ". " in l]
+    out = {l.split(". ", 1)[0]: [[l.split(". ", 1)[1].split()[0], "requires", "investment"]]
+           for l in lines}
+    block = types.SimpleNamespace(type="text", text=json.dumps(out))
+    return types.SimpleNamespace(content=[block], stop_reason="end_turn")
 
-    class messages:  # noqa: N801
-        @staticmethod
-        def create(**kw):
-            lines = [l for l in kw["messages"][0]["content"].splitlines() if l[:1].isdigit() and ". " in l]
-            out = {l.split(". ", 1)[0]: [[l.split(". ", 1)[1].split()[0], "requires", "investment"]]
-                   for l in lines}
-            block = types.SimpleNamespace(type="text", text=json.dumps(out))
-            return types.SimpleNamespace(content=[block])
+
+class FakeBatches:
+    """Stands in for client.messages.batches: ends immediately, returns results reversed."""
+
+    def __init__(self):
+        self.store = {}
+
+    def create(self, requests):
+        self.store["b1"] = requests
+        return types.SimpleNamespace(id="b1", processing_status="ended")
+
+    def results(self, batch_id):
+        for r in reversed(self.store[batch_id]):
+            yield types.SimpleNamespace(custom_id=r["custom_id"], result=types.SimpleNamespace(
+                type="succeeded", message=_fake_message(**r["params"])))
+
+
+class FakeClient:
+    """Stands in for anthropic.Anthropic."""
+
+    def __init__(self):
+        self.messages = types.SimpleNamespace(create=_fake_message, batches=FakeBatches())
 
 
 class PipelineTest(unittest.TestCase):
@@ -56,15 +76,29 @@ class PipelineTest(unittest.TestCase):
         d = export.run(self.con, self.cfg, self.tmp / "o.json")["drift"]["resilience"]["en"]["drift"]
         self.assertTrue(any(step["drift"] > 0.3 for step in d))
 
-    def test_oie_with_fake_client(self):
-        sys.modules["anthropic"] = types.SimpleNamespace(Anthropic=lambda: FakeClient)
+    def _oie(self, **kw):
+        sys.modules["anthropic"] = types.SimpleNamespace(Anthropic=FakeClient)
         try:
-            n = oie.run(self.con, self.cfg, limit=40)
+            return oie.run(self.con, self.cfg, **kw)
         finally:
             del sys.modules["anthropic"]
-        self.assertGreater(n, 0)
+
+    def test_oie_with_fake_client(self):
+        self.assertGreater(self._oie(limit=40), 0)
         roles = {r[0] for r in self.con.execute("SELECT DISTINCT concept_role FROM triples")}
         self.assertIn("subject", roles)
+
+    def test_oie_batch_mode(self):
+        before = self.con.execute("SELECT COUNT(DISTINCT doc_id) FROM triples").fetchone()[0]
+        self.assertGreater(self._oie(limit=40, batch=True), 0)
+        after = self.con.execute("SELECT COUNT(DISTINCT doc_id) FROM triples").fetchone()[0]
+        self.assertGreater(after, before)
+
+    def test_limit_never_splits_a_document(self):
+        items = list(oie.candidates(self.con, self.cfg["_concepts"], 600, limit=3))
+        doc = items[-1][0]
+        full = [i for i in oie.candidates(self.con, self.cfg["_concepts"], 600) if i[0] == doc]
+        self.assertEqual(len([i for i in items if i[0] == doc]), len(full))
 
 
 if __name__ == "__main__":
