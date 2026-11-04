@@ -1,0 +1,6 @@
+data/
+corpus/
+downloads/
+*.sqlite
+__pycache__/
+.env

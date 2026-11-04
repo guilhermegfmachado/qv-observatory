@@ -1,0 +1,104 @@
+# QV Observatory configuration.
+# Patterns are case-insensitive Python regexes, matched per document language.
+# Documents tagged lang = "mul" (e.g. Belgian ParlaMint) are matched against every language.
+
+[project]
+name = "QV Observatory"
+db_path = "data/observatory.sqlite"
+site_data = "site/data/observatory.json"
+
+[domains]
+# label shown on the site, in the order lanes are drawn
+policy = "EU policy"
+parliament = "Parliaments"
+news = "News"
+art = "Art discourse"
+
+[analysis]
+series_granularity = "month"   # month | year
+onset_fraction = 0.25          # onset = first period reaching this fraction of the domain's peak rate
+min_docs_per_period = 5        # periods with fewer documents are treated as missing
+max_lag_months = 36            # cross-correlation search window
+drift_window = 8               # tokens either side of a concept mention
+drift_top_k = 25               # neighbours compared between periods
+stopword_max_df = 0.3          # tokens in more than this share of a language's documents are stopwords
+
+[oie]
+model = "claude-haiku-5-5"     # check current model strings at docs.claude.com before large runs
+prompt_version = "v1"
+batch_size = 20
+max_sentence_chars = 600
+
+[ontology]
+# Planned for v0.2 (see CLAUDE.md): ontology-gap index against Wikidata.
+wikidata_endpoint = "https://query.wikidata.org/sparql"
+
+[concepts.resilience]
+label = "resilience"
+en = 'resilien\w*'
+pt = 'resili[eê]n\w*'
+nl = 'veerkracht\w*|weerbaarheid|resilien\w*'
+fr = 'r[ée]silien\w*'
+de = 'resilien\w*|widerstandsf[äa]higkeit'
+es = 'resilien\w*'
+it = 'resilien\w*'
+
+[concepts.community]
+label = "community"
+en = 'communit(?:y|ies)'
+pt = 'comunidades?'
+nl = 'gemeenschap\w*'
+fr = 'communaut[ée]s?'
+de = 'gemeinschaft\w*|community'
+es = 'comunidad(?:es)?'
+it = 'comunit[àa]'
+
+[concepts.sustainability]
+label = "sustainability"
+en = 'sustainab\w*'
+pt = 'sustentab\w*|sustent[áa]ve\w*'
+nl = 'duurzaam\w*'
+fr = 'durabilit[ée]|durables?'
+de = 'nachhaltig\w*'
+es = 'sostenib\w*'
+it = 'sostenibil\w*'
+
+[concepts.care]
+label = "care"
+en = 'care|caring'
+pt = 'cuidados?|cuidar'
+nl = 'zorg\w*'
+fr = 'soins?|care'
+de = 'f[üu]rsorge|sorgearbeit|care'
+es = 'cuidados?|cuidar'
+it = 'cura|cure'
+
+[concepts.inclusion]
+label = "inclusion"
+en = 'inclusi\w*'
+pt = 'inclus\w*'
+nl = 'inclusi\w*'
+fr = 'inclusi\w*'
+de = 'inklusi\w*'
+es = 'inclusi\w*'
+it = 'inclusi\w*'
+
+[concepts.decolonial]
+label = "decolonial"
+en = 'decoloni\w*'
+pt = 'descoloni\w*|decoloni\w*'
+nl = 'dekoloni\w*'
+fr = 'd[ée]coloni\w*'
+de = 'dekoloni\w*'
+es = 'descoloni\w*|decoloni\w*'
+it = 'decoloni\w*'
+
+[concepts.polycrisis]
+label = "polycrisis"
+en = 'polycris[ie]s'
+pt = 'policrises?'
+nl = 'polycrisis'
+fr = 'polycrises?'
+de = 'polykrisen?'
+es = 'policrisis'
+it = 'policrisi'
