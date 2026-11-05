@@ -83,7 +83,7 @@ def _windows(start: str, end: str, days: int = 90):
 
 def read(start: str, end: str, lang: str = "en", sector: str = "5", limit: int = 500, pause: float = 1.0,
          skip: set[str] = frozenset(), types=DEFAULT_TYPES):
-    """Yield up to `limit` new documents dated in [start, end), oldest first.
+    """Yield new documents dated in [start, end), oldest first, attempting at most `limit` works.
     `skip`: external ids already stored; their text is not fetched again."""
     n = 0
     for a, b in _windows(start, end):
@@ -93,8 +93,9 @@ def read(start: str, end: str, lang: str = "en", sector: str = "5", limit: int =
             ext = f"{celex}:{lang}"
             if ext in skip:
                 continue
+            n += 1  # attempts count, so a run of failures cannot loop for hours
             try:
-                parts = [_strip_html(_get(u)) for u in items]
+                parts = [_strip_html(_get(u, "*/*")) for u in items]
             except Exception as exc:  # noqa: BLE001 - log and continue
                 print(f"  skip {celex}: {exc}")
                 continue
@@ -104,6 +105,5 @@ def read(start: str, end: str, lang: str = "en", sector: str = "5", limit: int =
             if len(text) < 200:
                 print(f"  skip {celex}: only {len(text)} chars")
                 continue
-            n += 1
             yield Document(source="eurlex", external_id=ext, domain="policy", lang=lang, date=date,
                            title=celex, url=HUMAN_URL.format(lang=lang.upper(), celex=celex), text=text)

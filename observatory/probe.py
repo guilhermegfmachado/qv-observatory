@@ -10,13 +10,18 @@ import datetime as dt
 from collections import Counter
 from pathlib import Path
 
-from .ingest import creative_europe, eurlex, gdelt, parlamint
+from .ingest import creative_europe, eurlex, europarl, gdelt, parlamint
 
 
 def probe_eurlex(lang: str = "en", days: int = 60) -> bool:
-    """Run the real ingestion path on a recent window: catalogue query plus full-text fetch."""
+    """Run the real ingestion path (catalogue query plus full-text fetch) on a recent window
+    and on an old one, since older manifestations are served differently."""
     end = dt.date.today()
-    start = end - dt.timedelta(days=days)
+    return (_probe_eurlex_window(lang, end - dt.timedelta(days=days), end)
+            and _probe_eurlex_window(lang, dt.date(2016, 3, 1), dt.date(2016, 5, 1)))
+
+
+def _probe_eurlex_window(lang: str, start: dt.date, end: dt.date) -> bool:
     try:
         works = eurlex.list_works(start.isoformat(), end.isoformat(), lang, limit=5)
     except Exception as exc:  # noqa: BLE001
@@ -27,7 +32,7 @@ def probe_eurlex(lang: str = "en", days: int = 60) -> bool:
         print("eurlex: none; CDM property names, the type filter or the date filter may have changed")
         return False
     try:
-        docs = list(eurlex.read(start.isoformat(), end.isoformat(), lang, limit=2))
+        docs = list(eurlex.read(start.isoformat(), end.isoformat(), lang, limit=4))
     except Exception as exc:  # noqa: BLE001
         print(f"eurlex: text fetch failed: {exc}")
         return False
@@ -47,6 +52,22 @@ def probe_gdelt(cfg: dict, lang: str = "en", days: int = 30) -> bool:
     hits, total = sum(r[1] for r in rows), sum(r[2] for r in rows)
     print(f"gdelt: {q!r}: {len(rows)} days, {hits} of {total} articles")
     return bool(rows) and total > 0
+
+
+def probe_europarl() -> bool:
+    try:
+        sittings = europarl.list_sittings()
+    except Exception as exc:  # noqa: BLE001
+        print(f"europarl: listing failed: {exc}")
+        return False
+    print(f"europarl: {len(sittings)} sittings, {sittings[0][1] if sittings else '-'}"
+          f" .. {sittings[-1][1] if sittings else '-'}")
+    if not sittings:
+        return False
+    docs = list(europarl.read(start=sittings[-1][1], limit=1))
+    for d in docs:
+        print(f"europarl: {d.external_id}: {len(d.text)} chars: {d.text[:100]!r}")
+    return bool(docs)
 
 
 def probe_parlamint(root: Path) -> bool:

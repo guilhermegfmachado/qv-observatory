@@ -116,6 +116,16 @@ class PipelineTest(unittest.TestCase):
         series = mig["concepts"]["resilience"]["series"]["news"]
         self.assertEqual(max(v for v in series if v is not None), 0.07)  # 70 of 1000 articles
 
+    def test_europarl_parse_groups_speeches_by_language(self):
+        from observatory.ingest import europarl
+        xml = """<DEBATS><CHAPTER NUMBER="1"><TL-CHAP VL="EN">Item</TL-CHAP>
+        <INTERVENTION><ORATEUR PP="NULL" LG="EN" MEPID="1" LIB="A | B"><LG>EN</LG>
+        <EMPHAS NAME="B">Chair. –</EMPHAS></ORATEUR><PARA>Resilience matters.</PARA>
+        <PARA><EMPHAS NAME="I">(Applause)</EMPHAS></PARA></INTERVENTION>
+        <INTERVENTION><ORATEUR LG="FR" MEPID="2"><LG>FR</LG></ORATEUR>
+        <PARA>La r&#233;silience compte.</PARA></INTERVENTION></CHAPTER></DEBATS>"""
+        self.assertEqual(europarl.parse(xml), {"EN": ["Resilience matters."], "FR": ["La résilience compte."]})
+
     def test_limit_never_splits_a_document(self):
         items = list(oie.candidates(self.con, self.cfg["_concepts"], 600, limit=3))
         doc = items[-1][0]
