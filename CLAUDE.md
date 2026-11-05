@@ -27,12 +27,14 @@ python -m observatory ingest parlamint downloads/ParlaMint-PT/
 python -m observatory ingest creative-europe downloads/creative-europe.csv
 python -m observatory ingest eurlex --start 2015-01-01 --end 2026-01-01 --lang en
 python -m observatory ingest eurlex --incremental --lang en   # resume from latest stored date
+python -m observatory ingest europarl --limit 150   # EP plenary debates, one doc per sitting x language
+python -m observatory ingest gdelt                  # news volume counts (GDELT DOC API), en,fr,nl,pt
 python -m observatory mentions
 python -m observatory oie --dry-run           # always dry-run first: prints request count
 python -m observatory oie --limit 2000
 python -m observatory oie --batch --limit 2000  # Message Batches API: half price, async
-python -m observatory probe eurlex            # check a source's assumptions (also: parlamint DIR,
-                                              # creative-europe CSV, model)
+python -m observatory probe eurlex            # check a source's assumptions (also: europarl, gdelt,
+                                              # parlamint DIR, creative-europe CSV, model)
 python -m observatory export
 cd site && python -m http.server              # preview
 ```
@@ -68,7 +70,12 @@ when the assumption fails.
   `ANTHROPIC_API_KEY` secret is set, exports, refuses to publish if `meta.synthetic`, and deploys
   `site/` to GitHub Pages. The SQLite corpus lives in the Actions cache, never in git; on a cache
   miss the incremental ingest backfills from 2015-01-01.
-- ParlaMint and Creative Europe are manual downloads and are not ingested in CI yet.
+- Sources in CI: EUR-Lex (policy; text from CELLAR, eur-lex.europa.eu blocks scripts), European
+  Parliament (parliament; Open Data API + data.europarl.europa.eu XML, europarl.europa.eu/doceo
+  blocks scripts), GDELT DOC API (news; counts only, in the `counts` table; throttles CI, resumes).
+- `.github/workflows/probe.yml` runs the live probes on every branch push touching ingestion: the
+  way to test source changes, since the dev container cannot reach EU hosts.
+- Art discourse has no automated source yet. ParlaMint and Creative Europe are manual downloads.
 
 ## Roadmap
 - v0.2 Sources: GDELT GKG (news themes), CC-News (multilingual news text), e-flux announcements

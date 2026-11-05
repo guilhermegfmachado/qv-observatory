@@ -10,7 +10,10 @@ on:
     inputs:
       limit:
         description: "EUR-Lex documents per language this run"
-        default: "1000"
+        default: "300"
+      ep_limit:
+        description: "European Parliament sittings this run"
+        default: "150"
       langs:
         description: "EUR-Lex languages, space-separated"
         default: "en fr nl pt"
@@ -29,7 +32,8 @@ permissions:
 
 env:
   DB: data/observatory.sqlite
-  LIMIT: ${{ inputs.limit || '1000' }}
+  LIMIT: ${{ inputs.limit || '300' }}
+  EP_LIMIT: ${{ inputs.ep_limit || '150' }}
   LANGS: ${{ inputs.langs || 'en fr nl pt' }}
   OIE_LIMIT: ${{ inputs.oie_limit || '2000' }}
   HAS_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
@@ -57,10 +61,26 @@ jobs:
         run: python -m observatory probe eurlex
 
       - name: Ingest EUR-Lex
+        continue-on-error: true   # partial progress is saved; the next run resumes
+        timeout-minutes: 120
         run: |
           for lang in $LANGS; do
             python -m observatory --db "$DB" ingest eurlex --incremental --lang "$lang" --limit "$LIMIT"
           done
+          python -m observatory --db "$DB" status
+
+      - name: Ingest European Parliament debates
+        continue-on-error: true
+        timeout-minutes: 60
+        run: |
+          python -m observatory --db "$DB" ingest europarl --limit "$EP_LIMIT"
+
+      - name: Ingest GDELT news volume
+        continue-on-error: true   # GDELT throttles shared CI addresses; it resumes next run
+        timeout-minutes: 60
+        run: |
+          python -m observatory probe gdelt
+          python -m observatory --db "$DB" ingest gdelt
           python -m observatory --db "$DB" status
 
       - name: Save corpus

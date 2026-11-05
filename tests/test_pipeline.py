@@ -12,6 +12,7 @@ sys.path.insert(0, str(ROOT / "tests"))
 
 import synthetic  # noqa: E402
 from observatory import config, db, export  # noqa: E402
+from observatory.analysis import migration  # noqa: E402
 from observatory.extract import mentions, oie  # noqa: E402
 from observatory.ingest import base, folder  # noqa: E402
 
@@ -93,6 +94,37 @@ class PipelineTest(unittest.TestCase):
         self.assertGreater(self._oie(limit=40, batch=True), 0)
         after = self.con.execute("SELECT COUNT(DISTINCT doc_id) FROM triples").fetchone()[0]
         self.assertGreater(after, before)
+
+    def test_gdelt_counts_enter_news_lane(self):
+        from observatory.ingest import gdelt
+        calls = []
+
+        def fake_timeline(q, a, b):
+            calls.append(q)
+            return [(a, 50, 1000), (b, 70, 1000)]
+
+        con = db.connect(self.tmp / "g.sqlite")
+        self.addCleanup(con.close)
+        orig, gdelt.timeline, gdelt.PAUSE = gdelt.timeline, fake_timeline, 0
+        try:
+            n = gdelt.run(con, self.cfg, langs=("en",), end="2018-06-30")
+        finally:
+            gdelt.timeline = orig
+        self.assertEqual(n, 2 * 2 * len([k for k in self.cfg["concepts"] if "gdelt" in self.cfg["concepts"][k]]))
+        self.assertIn("(resilience OR resilient) sourcelang:english", calls)
+        mig = migration.run(con, self.cfg)
+        series = mig["concepts"]["resilience"]["series"]["news"]
+        self.assertEqual(max(v for v in series if v is not None), 0.07)  # 70 of 1000 articles
+
+    def test_europarl_parse_groups_speeches_by_language(self):
+        from observatory.ingest import europarl
+        xml = """<DEBATS><CHAPTER NUMBER="1"><TL-CHAP VL="EN">Item</TL-CHAP>
+        <INTERVENTION><ORATEUR PP="NULL" LG="EN" MEPID="1" LIB="A | B"><LG>EN</LG>
+        <EMPHAS NAME="B">Chair. –</EMPHAS></ORATEUR><PARA>Resilience matters.</PARA>
+        <PARA><EMPHAS NAME="I">(Applause)</EMPHAS></PARA></INTERVENTION>
+        <INTERVENTION><ORATEUR LG="FR" MEPID="2"><LG>FR</LG></ORATEUR>
+        <PARA>La r&#233;silience compte.</PARA></INTERVENTION></CHAPTER></DEBATS>"""
+        self.assertEqual(europarl.parse(xml), {"EN": ["Resilience matters."], "FR": ["La résilience compte."]})
 
     def test_limit_never_splits_a_document(self):
         items = list(oie.candidates(self.con, self.cfg["_concepts"], 600, limit=3))
