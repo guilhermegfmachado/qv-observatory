@@ -95,8 +95,10 @@ def run(con, cfg: dict, langs=("en", "fr", "nl", "pt"), end: str | None = None) 
                 first = False
                 rows = timeline(q, a, b)
                 if rows is None:
-                    print(f"  {key}/{lang} {a}..{b}: failed, resumes next run")
-                    break
+                    # Throttling applies to the whole address, so further requests would only
+                    # burn the time budget. Stop here; the next run resumes from this point.
+                    print(f"  {key}/{lang} {a}..{b}: failed after retries; stopping, resumes next run")
+                    return stored
                 con.executemany(
                     "INSERT OR REPLACE INTO counts VALUES ('gdelt','news',?,?,?,?,?)",
                     [(key, lang, d, h, t) for d, h, t in rows if t > 0])
