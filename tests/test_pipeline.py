@@ -126,6 +126,11 @@ class PipelineTest(unittest.TestCase):
         <PARA>La r&#233;silience compte.</PARA></INTERVENTION></CHAPTER></DEBATS>"""
         self.assertEqual(europarl.parse(xml), {"EN": ["Resilience matters."], "FR": ["La résilience compte."]})
 
+    def test_eurlex_strip_keeps_words_whole(self):
+        from observatory.ingest import eurlex
+        raw = "<head><title>x</title></head><p>stren<span class='a'>gthening</span> resi\xadlience</p><p>next</p>"
+        self.assertEqual(eurlex._strip_html(raw), "strengthening resilience next")
+
     def test_limit_never_splits_a_document(self):
         items = list(oie.candidates(self.con, self.cfg["_concepts"], 600, limit=3))
         doc = items[-1][0]

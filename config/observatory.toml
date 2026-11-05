@@ -19,6 +19,8 @@ series_granularity = "month"   # month | year
 onset_fraction = 0.25          # onset = first period reaching this fraction of the domain's peak rate
 min_docs_per_period = 5        # periods with fewer documents are treated as missing
 max_lag_months = 36            # cross-correlation search window
+min_mentions_for_lag = 30      # a lag needs this many mentioning documents in each domain
+min_periods_for_lag = 12       # ... and this many periods where both domains have data
 drift_window = 8               # tokens either side of a concept mention
 drift_top_k = 25               # neighbours compared between periods
 stopword_max_df = 0.3          # tokens in more than this share of a language's documents are stopwords

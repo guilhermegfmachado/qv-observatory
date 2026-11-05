@@ -18,6 +18,7 @@ def run(con: sqlite3.Connection, cfg: dict, out_path: Path, synthetic: bool = Fa
         "meta": {
             "generated": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
             "synthetic": synthetic,
+            "min_docs_per_period": cfg["analysis"]["min_docs_per_period"],
             "domains": cfg["domains"],
             "corpus": [dict(r) for r in stats],
             "counts": [dict(r) for r in con.execute(

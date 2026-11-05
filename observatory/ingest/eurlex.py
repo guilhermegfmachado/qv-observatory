@@ -12,9 +12,9 @@ import datetime as dt
 import html
 import json
 import re
-import time
 import urllib.parse
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 
 from .base import Document
 
@@ -52,9 +52,16 @@ def _get(url: str, accept: str = "text/html, application/xhtml+xml") -> str:
         return r.read().decode("utf-8", "replace")
 
 
+_INLINE = re.compile(r"(?i)</?(?:span|a|b|i|em|strong|u|sup|sub|font|small|abbr)\b[^>]*>")
+
+
 def _strip_html(raw: str) -> str:
+    """Plain text. Inline tags are removed without a space (EUR-Lex wraps parts of words in
+    spans); block tags become spaces. Soft hyphens are dropped."""
     raw = re.sub(r"(?is)<(script|style|head)\b.*?</\1>", " ", raw)
-    return re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]+>", " ", raw))).strip()
+    raw = _INLINE.sub("", raw)
+    text = html.unescape(re.sub(r"<[^>]+>", " ", raw)).replace("\xad", "")
+    return re.sub(r"\s+", " ", text).strip()
 
 
 def _doc_order(url: str) -> int:
@@ -81,29 +88,32 @@ def _windows(start: str, end: str, days: int = 90):
         a = b
 
 
-def read(start: str, end: str, lang: str = "en", sector: str = "5", limit: int = 500, pause: float = 1.0,
+def _fetch_work(work):
+    celex, date, items = work
+    try:
+        return work, "\n".join(p for p in (_strip_html(_get(u, "*/*")) for u in items) if p), None
+    except Exception as exc:  # noqa: BLE001 - reported by the caller
+        return work, "", exc
+
+
+def read(start: str, end: str, lang: str = "en", sector: str = "5", limit: int = 500, workers: int = 6,
          skip: set[str] = frozenset(), types=DEFAULT_TYPES):
     """Yield new documents dated in [start, end), oldest first, attempting at most `limit` works.
-    `skip`: external ids already stored; their text is not fetched again."""
+    Texts are fetched `workers` at a time. `skip`: external ids already stored."""
     n = 0
-    for a, b in _windows(start, end):
-        for celex, date, items in list_works(a, b, lang, sector, types, limit=10_000):
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        for a, b in _windows(start, end):
+            todo = [w for w in list_works(a, b, lang, sector, types, limit=10_000)
+                    if f"{w[0]}:{lang}" not in skip][: max(0, limit - n)]
+            n += len(todo)  # attempts count, so a run of failures cannot loop for hours
+            for (celex, date, _), text, exc in pool.map(_fetch_work, todo):
+                if exc is not None:
+                    print(f"  skip {celex}: {exc}")
+                elif len(text) < 200:
+                    print(f"  skip {celex}: only {len(text)} chars")
+                else:
+                    yield Document(source="eurlex", external_id=f"{celex}:{lang}", domain="policy",
+                                   lang=lang, date=date, title=celex,
+                                   url=HUMAN_URL.format(lang=lang.upper(), celex=celex), text=text)
             if n >= limit:
                 return
-            ext = f"{celex}:{lang}"
-            if ext in skip:
-                continue
-            n += 1  # attempts count, so a run of failures cannot loop for hours
-            try:
-                parts = [_strip_html(_get(u, "*/*")) for u in items]
-            except Exception as exc:  # noqa: BLE001 - log and continue
-                print(f"  skip {celex}: {exc}")
-                continue
-            finally:
-                time.sleep(pause)
-            text = "\n".join(p for p in parts if p)
-            if len(text) < 200:
-                print(f"  skip {celex}: only {len(text)} chars")
-                continue
-            yield Document(source="eurlex", external_id=ext, domain="policy", lang=lang, date=date,
-                           title=celex, url=HUMAN_URL.format(lang=lang.upper(), celex=celex), text=text)
