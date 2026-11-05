@@ -10,17 +10,16 @@ def run(con: sqlite3.Connection, concepts: dict, rebuild: bool = False) -> int:
     if rebuild:
         con.execute("DELETE FROM mentions")
         con.execute("DELETE FROM _scanned")
-    docs = con.execute(
-        "SELECT id, lang, text FROM documents WHERE id NOT IN (SELECT doc_id FROM _scanned)"
-    ).fetchall()
-    rows = []
-    for doc in docs:
+    rows, ids = [], []
+    for doc in con.execute(  # streamed: texts are not all held in memory
+            "SELECT id, lang, text FROM documents WHERE id NOT IN (SELECT doc_id FROM _scanned)"):
+        ids.append(doc["id"])
         for c in concepts.values():
             for lang, pat in c.pattern_for(doc["lang"]):
                 k = len(pat.findall(doc["text"]))
                 if k:
                     rows.append((doc["id"], c.key, lang, k))
     con.executemany("INSERT OR REPLACE INTO mentions VALUES (?,?,?,?)", rows)
-    con.executemany("INSERT OR IGNORE INTO _scanned VALUES (?)", [(d["id"],) for d in docs])
+    con.executemany("INSERT OR IGNORE INTO _scanned VALUES (?)", [(i,) for i in ids])
     con.commit()
-    return len(docs)
+    return len(ids)
