@@ -92,8 +92,12 @@ function render() {
   if (lags.length) {
     const unit = D.migration.granularity === "month" ? "months" : "years";
     app.append(h("h3", {}, "Which domain follows which"));
-    app.append(table(["Follower", "Leader", `Lag (${unit})`, "Correlation r"],
-      lags.map(l => [dom(l.follow), dom(l.lead), l.lag, l.r.toFixed(2)])));
+    app.append(table(["Follower", "Leader", `Lag (${unit})`, "Correlation r", "Periods compared"],
+      lags.map(l => [dom(l.follow), dom(l.lead), l.lag, l.r.toFixed(2), l.periods ?? ""])));
+  } else {
+    app.append(h("h3", {}, "Which domain follows which"));
+    app.append(h("p", {}, "Not enough evidence yet: a lag needs at least 30 mentioning documents in each domain ",
+      "and 12 periods where both have data."));
   }
 
   drift(app, D.drift[k] || {});
@@ -109,14 +113,14 @@ function render() {
 }
 
 function chart(mig) {
-  const P = D.migration.periods, doms = Object.keys(D.meta.domains);
+  const P = D.migration.periods, doms = activeDomains();
   const W = 900, L = 110, laneH = 50, gap = 12, axis = 20, H = doms.length * (laneH + gap) + axis;
-  const x = i => L + (i / Math.max(1, P.length - 1)) * (W - L - 5);
+  const x = i => L + (i / Math.max(1, P.length - 1)) * (W - L - 30);
   const svg = s("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Usage rate over time per domain" });
   doms.forEach((d, li) => {
     const base = li * (laneH + gap) + laneH, vals = mig.series[d] || [];
     const peak = Math.max(1e-4, ...vals.filter(v => v != null));
-    svg.append(s("line", { x1: L, x2: W - 5, y1: base, y2: base, stroke: "var(--line)" }));
+    svg.append(s("line", { x1: L, x2: W - 30, y1: base, y2: base, stroke: "var(--line)" }));
     const t = s("text", { x: 0, y: base - laneH / 2 + 4 }); t.textContent = dom(d); svg.append(t);
     let p = "", open = false;
     vals.forEach((v, i) => {
@@ -154,9 +158,33 @@ function drift(app, byLang) {
     })));
 }
 
+function activeDomains() {
+  return Object.keys(D.meta.domains).filter(d => (D.migration.documents[d] || []).some(n => n > 0));
+}
+
+function coverage(app) {
+  const SOURCE = { policy: "EUR-Lex (European Commission documents, English)",
+    parliament: "European Parliament plenary debates", news: "GDELT article counts", art: "" };
+  const rows = Object.keys(D.meta.domains).map(d => {
+    const docs = D.meta.corpus.filter(r => r.domain === d);
+    const cnt = (D.meta.counts || []).filter(r => r.domain === d);
+    const all = [...docs, ...cnt];
+    if (!all.length) return [dom(d), "no source yet", "", "", ""];
+    const n = docs.reduce((a, r) => a + r.n, 0);
+    const first = all.map(r => r.first).sort()[0], last = all.map(r => r.last).sort().at(-1);
+    const langs = [...new Set(all.map(r => r.lang))].join(", ");
+    return [dom(d), SOURCE[d] || "", n ? n.toLocaleString("en") + " documents" : "counts only", `${first} to ${last}`, langs];
+  });
+  app.append(h("h3", {}, "Coverage"));
+  app.append(table(["Domain", "Source", "Size", "Dates", "Languages"], rows));
+  app.append(h("p", {}, `Periods with fewer than ${D.meta.min_docs_per_period ?? 5} documents in a domain are left blank.`));
+}
+
 function footer(app) {
+  coverage(app);
   app.append(h("hr"), h("p", {}, h("small", {}, `Generated ${D.meta.generated}. Sources: ${D.meta.sources.join(", ")}. `,
-    "Corpus: " + D.meta.corpus.reduce((a, r) => a + r.n, 0).toLocaleString("en") + " documents.")));
+    "Corpus: " + D.meta.corpus.reduce((a, r) => a + r.n, 0).toLocaleString("en") + " documents. ",
+    "EUR-Lex and European Parliament texts are reused with attribution; only derived statistics are shown.")));
 }
 
 init();

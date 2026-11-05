@@ -5,18 +5,22 @@ name: pipeline
 
 on:
   schedule:
-    - cron: "17 4 * * 1"   # Mondays 04:17 UTC
+    - cron: "17 4 * * *"   # daily 04:17 UTC; incremental, so quiet days are quick
   workflow_dispatch:
     inputs:
       limit:
         description: "EUR-Lex documents per language this run"
-        default: "300"
+        default: "4000"
       ep_limit:
         description: "European Parliament sittings this run"
-        default: "150"
+        default: "300"
       langs:
         description: "EUR-Lex languages, space-separated"
-        default: "en fr nl pt"
+        default: "en"
+      reset_eurlex:
+        description: "Delete stored EUR-Lex texts and fetch them again (after a text-cleaning fix)"
+        type: boolean
+        default: false
       oie_limit:
         description: "Sentences for triple extraction (0 = skip)"
         default: "2000"
@@ -32,9 +36,9 @@ permissions:
 
 env:
   DB: data/observatory.sqlite
-  LIMIT: ${{ inputs.limit || '300' }}
-  EP_LIMIT: ${{ inputs.ep_limit || '150' }}
-  LANGS: ${{ inputs.langs || 'en fr nl pt' }}
+  LIMIT: ${{ inputs.limit || '4000' }}
+  EP_LIMIT: ${{ inputs.ep_limit || '300' }}
+  LANGS: ${{ inputs.langs || 'en' }}
   OIE_LIMIT: ${{ inputs.oie_limit || '2000' }}
   HAS_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
 
@@ -62,8 +66,14 @@ jobs:
 
       - name: Ingest EUR-Lex
         continue-on-error: true   # partial progress is saved; the next run resumes
-        timeout-minutes: 120
+        timeout-minutes: 150
         run: |
+          # Commission documents are translations published the same day in every language:
+          # extra languages add cost and skew rates, not information. Policy is English only.
+          python -m observatory --db "$DB" prune --source eurlex --keep-langs en
+          if [ "${{ inputs.reset_eurlex }}" = "true" ]; then
+            python -m observatory --db "$DB" prune --source eurlex
+          fi
           for lang in $LANGS; do
             python -m observatory --db "$DB" ingest eurlex --incremental --lang "$lang" --limit "$LIMIT"
           done

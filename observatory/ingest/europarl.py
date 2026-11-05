@@ -11,9 +11,9 @@ from __future__ import annotations
 import html
 import json
 import re
-import time
 import urllib.parse
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 
 from .base import Document
 
@@ -79,31 +79,29 @@ def parse(xml: str) -> dict[str, list[str]]:
     return by_lang
 
 
-def read(start: str = "2014-01-01", limit: int = 100, pause: float = 1.0, skip: set[str] = frozenset()):
-    """Yield documents for up to `limit` sittings dated >= start that are not yet stored.
-    `skip`: sitting ids already stored."""
-    n = 0
-    for sid, date in list_sittings():
-        if date < start or sid in skip:
-            continue
-        if n >= limit:
-            return
-        n += 1  # attempts count toward the limit
-        try:
-            url = xml_url(sid)
-            if not url:
-                print(f"  skip {sid}: no XML published yet")
+def _fetch_sitting(sid: str):
+    try:
+        url = xml_url(sid)
+        if not url:
+            return None, "no XML published yet"
+        return _get(url, "*/*").decode("utf-8", "replace"), None
+    except Exception as exc:  # noqa: BLE001 - reported by the caller
+        return None, exc
+
+
+def read(start: str = "2014-01-01", limit: int = 100, workers: int = 4, skip: set[str] = frozenset()):
+    """Yield documents for up to `limit` sittings dated >= start that are not yet stored,
+    fetched `workers` at a time. `skip`: sitting ids already stored."""
+    todo = [(sid, date) for sid, date in list_sittings() if date >= start and sid not in skip][:limit]
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        for (sid, date), (xml, err) in zip(todo, pool.map(_fetch_sitting, [s for s, _ in todo])):
+            if xml is None:
+                print(f"  skip {sid}: {err}")
                 continue
-            xml = _get(url, "*/*").decode("utf-8", "replace")
-        except Exception as exc:  # noqa: BLE001 - log and continue
-            print(f"  skip {sid}: {exc}")
-            continue
-        finally:
-            time.sleep(pause)
-        for lg, paras in parse(xml).items():
-            lang = LANGS.get(lg)
-            if not lang or sum(map(len, paras)) < 200:
-                continue
-            yield Document(source="europarl", external_id=f"{sid}:{lang}", domain="parliament",
-                           lang=lang, date=date, country="EU", title=sid,
-                           url=HUMAN_URL.format(id=sid), text="\n".join(paras))
+            for lg, paras in parse(xml).items():
+                lang = LANGS.get(lg)
+                if not lang or sum(map(len, paras)) < 200:
+                    continue
+                yield Document(source="europarl", external_id=f"{sid}:{lang}", domain="parliament",
+                               lang=lang, date=date, country="EU", title=sid,
+                               url=HUMAN_URL.format(id=sid), text="\n".join(paras))

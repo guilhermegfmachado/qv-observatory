@@ -43,6 +43,10 @@ def main(argv=None):
 
     sub.add_parser("status", help="corpus summary")
 
+    pru = sub.add_parser("prune", help="delete a source's documents outside the kept languages")
+    pru.add_argument("--source", required=True)
+    pru.add_argument("--keep-langs", default="", help="comma-separated, e.g. en; empty deletes all")
+
     pr = sub.add_parser("probe", help="check assumptions about a live source")
     pr.add_argument("source", choices=["eurlex", "europarl", "gdelt", "parlamint", "creative-europe", "model"])
     pr.add_argument("path", nargs="?", help="ParlaMint dir / Creative Europe CSV")
@@ -96,6 +100,12 @@ def main(argv=None):
         out = args.out or config.resolve(cfg, cfg["project"]["site_data"])
         export.run(con, cfg, out, synthetic=args.synthetic)
         print(f"wrote {out}")
+    elif args.cmd == "prune":
+        keep = tuple(l for l in args.keep_langs.split(",") if l) or ("",)
+        q = f"DELETE FROM documents WHERE source=? AND lang NOT IN ({','.join('?' * len(keep))})"
+        n = con.execute(q, (args.source, *keep)).rowcount
+        con.commit()
+        print(f"pruned {n} {args.source} documents outside {', '.join(keep)}")
     elif args.cmd == "status":
         for r in con.execute("SELECT domain, lang, COUNT(*), MIN(date), MAX(date) FROM documents"
                              " GROUP BY domain, lang ORDER BY domain, lang"):
