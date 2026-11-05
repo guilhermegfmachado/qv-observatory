@@ -64,7 +64,7 @@ def probe_europarl() -> bool:
           f" .. {sittings[-1][1] if sittings else '-'}")
     if not sittings:
         return False
-    docs = list(europarl.read(start=sittings[-1][1], limit=1))
+    docs = list(europarl.read(start=sittings[-8][1], limit=1))  # newest XML can lag a few weeks
     for d in docs:
         print(f"europarl: {d.external_id}: {len(d.text)} chars: {d.text[:100]!r}")
     return bool(docs)
