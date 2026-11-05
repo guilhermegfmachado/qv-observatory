@@ -115,6 +115,7 @@ class PipelineTest(unittest.TestCase):
         mig = migration.run(con, self.cfg)
         series = mig["concepts"]["resilience"]["series"]["news"]
         self.assertEqual(max(v for v in series if v is not None), 0.07)  # 70 of 1000 articles
+        self.assertEqual(mig["concepts"]["resilience"]["mentions"], 0)  # counts are not documents
 
     def test_europarl_parse_groups_speeches_by_language(self):
         from observatory.ingest import europarl

@@ -83,6 +83,7 @@ def run(con: sqlite3.Connection, cfg: dict) -> dict:
             " WHERE m.concept=?", (key,)):
             if row["domain"] in hits:
                 hits[row["domain"]][idx[_period(row["date"], gran)]] += 1
+        doc_mentions = sum(sum(v) for v in hits.values())  # documents only, not aggregate counts
         for row in con.execute("SELECT domain, date, SUM(hits) AS h FROM counts WHERE concept=?"
                                " GROUP BY domain, date", (key,)):
             if row["domain"] in hits:
@@ -124,7 +125,8 @@ def run(con: sqlite3.Connection, cfg: dict) -> dict:
                    GROUP BY m.lang ORDER BY d.date""", (key,))
         ]
         out["concepts"][key] = {
-            "mentions": sum(sum(v) for v in hits.values()),
+            "mentions": doc_mentions,
+            "counted_items": {d: sum(hits[d]) for d in domains},
             "series": series, "onsets": onsets, "lags": lags, "first_by_lang": first_by_lang,
         }
     return out
