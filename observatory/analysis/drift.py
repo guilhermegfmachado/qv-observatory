@@ -15,51 +15,63 @@ from ..config import LANGS
 from ..text import tokens
 
 
+def _doc_langs(lang: str) -> list[str]:
+    return list(LANGS) if lang == "mul" else [lang]
+
+
 def run(con: sqlite3.Connection, cfg: dict) -> dict:
+    """Two streaming passes over the corpus, so memory grows with vocabulary, not corpus size:
+    (1) token frequencies per (language, year) and document frequencies per language;
+    (2) context windows around mentions, read only from documents that mention a concept."""
     acfg = cfg["analysis"]
     win, top_k, max_df = acfg["drift_window"], acfg["drift_top_k"], acfg["stopword_max_df"]
     concepts = cfg["_concepts"]
 
-    # Token counts per (lang, year) and stopwords per lang.
     freq: dict[tuple[str, str], Counter] = defaultdict(Counter)
-    docs_by_lang = defaultdict(list)
-    for row in con.execute("SELECT id, lang, date, text FROM documents"):
+    df: dict[str, Counter] = defaultdict(Counter)
+    n_docs: Counter = Counter()
+    for row in con.execute("SELECT lang, date, text FROM documents"):
+        toks = tokens(row["text"])
+        uniq = set(toks)
+        for lang in _doc_langs(row["lang"]):
+            freq[(lang, row["date"][:4])].update(toks)
+            df[lang].update(uniq)
+            n_docs[lang] += 1
+    # Stopwords: tokens present in more than max_df of a language's documents.
+    stop = {lang: {w for w, c in d.items() if c / n_docs[lang] > max_df} for lang, d in df.items()}
+    del df
+
+    # ctx[(concept, lang)][year] -> collocate counts
+    ctx: dict[tuple[str, str], dict[str, Counter]] = defaultdict(lambda: defaultdict(Counter))
+    for row in con.execute("SELECT lang, date, text FROM documents"
+                           " WHERE id IN (SELECT DISTINCT doc_id FROM mentions)"):
         toks = tokens(row["text"])
         year = row["date"][:4]
-        langs = list(LANGS) if row["lang"] == "mul" else [row["lang"]]
-        for lang in langs:
-            freq[(lang, year)].update(toks)
-            docs_by_lang[lang].append((row["id"], year, toks))
-    # Stopwords: tokens present in more than max_df of a language's documents.
-    stop = {}
-    for lang, docs in docs_by_lang.items():
-        df = Counter()
-        for _, _, toks in docs:
-            df.update(set(toks))
-        stop[lang] = {w for w, c in df.items() if c / len(docs) > max_df}
-
-    out = {}
-    for key, concept in concepts.items():
-        per_lang = {}
-        for lang, pat in concept.patterns.items():
-            if lang not in docs_by_lang:
-                continue
-            ctx: dict[str, Counter] = defaultdict(Counter)
-            for _, year, toks in docs_by_lang[lang]:
+        for lang in _doc_langs(row["lang"]):
+            for key, concept in concepts.items():
+                pat = concept.patterns.get(lang)
+                if pat is None:
+                    continue
                 for i, t in enumerate(toks):
                     if pat.fullmatch(t):
                         for w in toks[max(0, i - win): i] + toks[i + 1: i + 1 + win]:
                             if len(w) > 2 and w not in stop[lang] and not pat.fullmatch(w):
-                                ctx[year][w] += 1
-            years = sorted(y for y in ctx if sum(ctx[y].values()) >= 20)
+                                ctx[(key, lang)][year][w] += 1
+
+    out = {}
+    for key, concept in concepts.items():
+        per_lang = {}
+        for lang in concept.patterns:
+            c_by_year = ctx.get((key, lang), {})
+            years = sorted(y for y in c_by_year if sum(c_by_year[y].values()) >= 20)
             if not years:
                 continue
             neigh = {}
             for y in years:
                 n_tok = sum(freq[(lang, y)].values())
-                c_tot = sum(ctx[y].values())
+                c_tot = sum(c_by_year[y].values())
                 scored = []
-                for w, c in ctx[y].items():
+                for w, c in c_by_year[y].items():
                     if c < 2:
                         continue
                     pmi = math.log((c * n_tok) / (c_tot * freq[(lang, y)][w]))
