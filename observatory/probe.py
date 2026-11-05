@@ -64,7 +64,10 @@ def probe_europarl() -> bool:
           f" .. {sittings[-1][1] if sittings else '-'}")
     if not sittings:
         return False
-    docs = list(europarl.read(start=sittings[-8][1], limit=1))  # newest XML can lag a few weeks
+    # The newest sittings can lack XML for weeks; try recent ones, then older.
+    docs = list(europarl.read(start=sittings[-12][1], limit=12)) or list(
+        europarl.read(start=sittings[len(sittings) // 2][1], limit=4))
+    docs = docs[:3]
     for d in docs:
         print(f"europarl: {d.external_id}: {len(d.text)} chars: {d.text[:100]!r}")
     return bool(docs)

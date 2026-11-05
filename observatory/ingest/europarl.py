@@ -18,7 +18,7 @@ import urllib.request
 from .base import Document
 
 API = "https://data.europarl.europa.eu/api/v2/plenary-session-documents"
-XML_URL = "https://data.europarl.europa.eu/distribution/doc/{id}_mul.xml"
+BASE = "https://data.europarl.europa.eu/"
 HUMAN_URL = "https://www.europarl.europa.eu/doceo/document/{id}_EN.html"  # attribution link
 UA = "qv-observatory/0.2 (research; github.com/guilhermegfmachado/qv-observatory)"
 ID_RE = re.compile(r"^CRE-(\d+)-(\d{4}-\d{2}-\d{2})$")
@@ -53,6 +53,18 @@ def list_sittings(page: int = 500) -> list[tuple[str, str]]:
     return sorted(out.items(), key=lambda kv: (kv[1], kv[0]))
 
 
+def xml_url(sid: str) -> str | None:
+    """URL of the sitting's multilingual XML as the API lists it, or None if not published yet."""
+    q = urllib.parse.urlencode({"format": "application/ld+json"})
+    data = json.loads(_get(f"{API}/{sid}?{q}", "application/ld+json")).get("data", [])
+    for work in data:
+        for expr in work.get("is_realized_by", []):
+            for man in expr.get("is_embodied_by", []):
+                if str(man.get("format", "")).endswith("/XML") and man.get("is_exemplified_by"):
+                    return urllib.parse.urljoin(BASE, man["is_exemplified_by"])
+    return None
+
+
 def parse(xml: str) -> dict[str, list[str]]:
     """Speech paragraphs per speaker language: {"EN": [...], "FR": [...]}."""
     by_lang: dict[str, list[str]] = {}
@@ -76,14 +88,18 @@ def read(start: str = "2014-01-01", limit: int = 100, pause: float = 1.0, skip: 
             continue
         if n >= limit:
             return
+        n += 1  # attempts count toward the limit
         try:
-            xml = _get(XML_URL.format(id=sid), "application/xml").decode("utf-8", "replace")
+            url = xml_url(sid)
+            if not url:
+                print(f"  skip {sid}: no XML published yet")
+                continue
+            xml = _get(url, "*/*").decode("utf-8", "replace")
         except Exception as exc:  # noqa: BLE001 - log and continue
             print(f"  skip {sid}: {exc}")
             continue
         finally:
             time.sleep(pause)
-        n += 1
         for lg, paras in parse(xml).items():
             lang = LANGS.get(lg)
             if not lang or sum(map(len, paras)) < 200:
