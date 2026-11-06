@@ -52,6 +52,12 @@ CREATE TABLE IF NOT EXISTS counts (
     PRIMARY KEY (source, concept, lang, date)
 );
 
+-- How far back each paged feed has been read, so backfill continues across runs.
+CREATE TABLE IF NOT EXISTS feed_state (
+    name          TEXT PRIMARY KEY,
+    deepest_page  INTEGER NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS oie_cache (
     key      TEXT PRIMARY KEY,     -- sha1(prompt_version + model + sentence)
     response TEXT NOT NULL

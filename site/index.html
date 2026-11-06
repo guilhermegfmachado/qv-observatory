@@ -38,14 +38,40 @@ table { border-collapse: collapse; font-size: .9rem; }
 th, td { border: 1px solid var(--line); padding: .3rem .5rem; text-align: left; vertical-align: top; }
 .words { font-size: 1.05rem; }
 .words b { font-weight: normal; text-decoration: underline; }
+.about { font-size: 1.1rem; font-style: italic; }
+.how ol li { margin-bottom: .5rem; }
+blockquote { margin: 1rem 0; padding: 0 0 0 1rem; border-left: 4px solid var(--line); font-size: 1.05rem; }
+blockquote cite { display: block; font-style: normal; font-size: .85rem; color: var(--muted); margin-top: .3rem; }
+blockquote mark { background: none; color: inherit; font-weight: bold; }
+.timeline li { margin-bottom: .4rem; }
 select { font: inherit; font-size: 1rem; padding: .3rem; min-height: 44px; }
 footer { margin-top: 3rem; border-top: 1px solid var(--line); padding-top: 1rem; font-size: .85rem; color: var(--muted); }
 </style>
 </head>
 <body>
 <h1>QV Observatory</h1>
-<p class="lede">How words like <i>resilience</i>, <i>care</i> or <i>sustainability</i> spread through Europe:
-from EU policy, to parliament, to the news, and to art. We read the documents and count.</p>
+<p class="lede">Words travel. A word like <i>resilience</i> can start in an EU strategy paper, move into
+parliament speeches, reach the news, and end up in exhibition texts — or go the other way.
+This site reads thousands of European documents and counts how often each word is used, month by month.</p>
+<details class="how">
+<summary>How does this work?</summary>
+<ol>
+<li><strong>We collect texts</strong> from four worlds: EU policy (European Commission documents),
+politics (European Parliament debates), the news (European newspapers and broadcasters) and art
+(art magazines and announcements).</li>
+<li><strong>We look for a handful of words</strong> that have become fashionable in Europe —
+resilience, community, sustainability, care, inclusion, decolonial, polycrisis — in seven languages
+(for example <i>resilience</i>, <i>résilience</i>, <i>resiliência</i>, <i>veerkracht</i>).</li>
+<li><strong>We count</strong> the share of documents that use each word, every month. 30% means
+3 in 10 documents used it at least once.</li>
+<li><strong>We compare</strong> the four worlds: where did the word rise first, and how many months
+did the others take to follow?</li>
+<li><strong>We look at the company it keeps</strong>: the words that appear right next to it, year
+by year. When those neighbours change, the meaning of the word is changing.</li>
+</ol>
+<p>The project is the machine-reading half of QV's book <i>Os Últimos Textos Humanos</i>:
+the machine reads Europe, and QV writes back. More at the bottom of the page.</p>
+</details>
 <div id="app"><p>Loading…</p></div>
 <script>
 const LANG = { en: "English", pt: "Portuguese", nl: "Dutch", fr: "French", de: "German", es: "Spanish", it: "Italian" };
@@ -118,6 +144,7 @@ function render() {
     h("li", {}, h("a", { href: "#" + x, "aria-current": x === k ? "true" : "false" }, D.concepts[x].label)))));
 
   app.append(h("h2", {}, label));
+  if (D.concepts[k].about) app.append(h("p", { class: "about" }, D.concepts[k].about));
   const domains = activeDomains();
   const years = Object.fromEntries(domains.map(d => [d, yearly(mig, d)]));
 
@@ -157,7 +184,8 @@ function render() {
   const missing = Object.keys(D.meta.domains).filter(d => !domains.includes(d));
   if (missing.length) app.append(h("p", { class: "muted" }, `No data yet for ${missing.map(dom).join(" and ")}.`));
 
-  // 3. Company it keeps
+  // 3. The word up close
+  closeUp(app, k, label);
   wordsSection(app, label, D.drift[k] || {});
 
   // 4. More detail
@@ -195,17 +223,49 @@ function chart(ys, max, W) {
   return svg;
 }
 
+function closeUp(app, k, label) {
+  // How it is written, per language (forms actually found in the texts)
+  const byLang = D.drift[k] || {};
+  const forms = Object.entries(byLang).filter(([, v]) => (v.forms || []).length);
+  if (forms.length) {
+    app.append(h("h3", {}, "How it is written"));
+    app.append(h("p", {}, "The forms of the word we found, and how many times, per language:"));
+    app.append(h("ul", {}, forms.map(([l, v]) => h("li", {}, h("strong", {}, `${LANG[l] || l}: `),
+      v.forms.map(([w, n]) => `${w} (${n.toLocaleString("en")})`).join(", ")))));
+  }
+  // In context: real sentences, from sources that may be quoted
+  const ex = (D.examples || {})[k] || [];
+  if (ex.length) {
+    app.append(h("h3", {}, "In their own words"));
+    app.append(h("p", {}, `Sentences that use “${label}”, from the earliest, middle and latest years we have.`));
+    const pat = new RegExp(`\\b(${D.concepts[k].lexemes.en || label})\\b`, "i");
+    for (const e of ex) {
+      const q = h("blockquote", {});
+      const m = e.text.match(pat);
+      if (m) q.append(e.text.slice(0, m.index), h("mark", {}, m[0]), e.text.slice(m.index + m[0].length));
+      else q.append(e.text);
+      q.append(h("cite", {}, `${dom(e.domain)}, ${monthName(e.date.slice(0, 7))} · `,
+        e.url ? h("a", { href: e.url, rel: "noopener" }, e.source) : e.source));
+      app.append(q);
+    }
+  }
+  // Often found together with
+  const co = ((D.cooccurrence || {})[k] || []).filter(c => c.share >= 0.05).slice(0, 4);
+  if (co.length) {
+    app.append(h("h3", {}, "Often found together with"));
+    app.append(h("ul", {}, co.map(c => h("li", {},
+      `${Math.round(c.share * 100)}% of the documents that use “${label}” also use “${D.concepts[c.with]?.label || c.with}”.`))));
+  }
+}
+
 function wordsSection(app, label, byLang) {
   const langs = Object.keys(byLang);
-  app.append(h("h3", {}, "Words used next to it"));
+  app.append(h("h3", {}, "The company it keeps"));
   if (!langs.length) { app.append(h("p", {}, "Not enough text yet to show this.")); return; }
   driftLang = langs.includes(driftLang) ? driftLang : (langs.includes("en") ? "en" : langs[0]);
   const { neighbours } = byLang[driftLang];
-  const yrs = Object.keys(neighbours);
-  const first = yrs[0], last = yrs[yrs.length - 1];
-  const top = yr => neighbours[yr].slice(0, 8).map(([w]) => w);
-  const newer = new Set(top(last).filter(w => !top(first).includes(w)));
-  app.append(h("p", {}, `The words that appear most often around “${label}” show what it is being used for.`));
+  app.append(h("p", {}, `These are the words that appear unusually often right next to “${label}”, year by year. `,
+    "When the list changes, the word is being used for something new. Underlined words are new that year."));
   if (langs.length > 1) {
     const sel = h("select", { id: "lang" }, langs.map(l => {
       const o = h("option", { value: l }, LANG[l] || l); if (l === driftLang) o.selected = true; return o;
@@ -213,12 +273,17 @@ function wordsSection(app, label, byLang) {
     sel.addEventListener("change", () => { driftLang = sel.value; render(); });
     app.append(h("p", {}, h("label", { for: "lang" }, "Language: "), sel));
   }
-  app.append(h("p", { class: "words" }, h("strong", {}, `${first}: `), top(first).join(", ")));
-  if (last !== first) {
-    app.append(h("p", { class: "words" }, h("strong", {}, `${last}: `),
-      top(last).flatMap((w, i) => [i ? ", " : "", newer.has(w) ? h("b", {}, w) : w])));
-    if (newer.size) app.append(h("p", { class: "muted" }, "Underlined words are new since " + first + "."));
-  }
+  // Underline words in this year's top 6 that were not in the previous year's top 12; the change
+  // label counts those, so what is labelled is what is visible.
+  const yrs = Object.keys(neighbours);
+  app.append(h("ul", { class: "timeline words" }, yrs.map((yr, i) => {
+    const words = neighbours[yr].slice(0, 6).map(([w]) => w);
+    const prev = i ? new Set(neighbours[yrs[i - 1]].slice(0, 12).map(([w]) => w)) : null;
+    const fresh = prev ? words.filter(w => !prev.has(w)) : [];
+    const shift = !prev ? "" : fresh.length >= 3 ? " (big change)" : fresh.length >= 1 ? " (some change)" : " (same as before)";
+    return h("li", {}, h("strong", {}, `${yr}${shift}: `),
+      words.flatMap((w, j) => [j ? ", " : "", fresh.includes(w) ? h("b", {}, w) : w]));
+  })));
 }
 
 function details(app, mig) {
@@ -240,22 +305,39 @@ function details(app, mig) {
   app.append(box);
 }
 
+const SOURCE_NAME = { eurlex: "EUR-Lex (European Commission documents)", europarl: "European Parliament plenary debates",
+  gdelt: "GDELT (news article counts)" };
+function sourceName(src) { return SOURCE_NAME[src] || (src.startsWith("rss:") ? src.slice(4).replace(/-/g, " ") : src); }
+
 function footer(app) {
-  const SOURCE = { policy: "European Commission documents (EUR-Lex, English)",
-    parliament: "European Parliament plenary debates", news: "GDELT news article counts" };
-  const rows = Object.keys(D.meta.domains).map(d => {
-    const docs = D.meta.corpus.filter(r => r.domain === d);
+  const groups = Object.keys(D.meta.domains).map(d => {
+    const rows = (D.meta.by_source || []).filter(r => r.domain === d);
     const cnt = (D.meta.counts || []).filter(r => r.domain === d);
-    const all = [...docs, ...cnt];
-    if (!all.length) return h("li", {}, `${dom(d)}: no source yet.`);
-    const n = docs.reduce((a, r) => a + r.n, 0);
-    const first = all.map(r => r.first).sort()[0].slice(0, 4), last = all.map(r => r.last).sort().at(-1).slice(0, 4);
-    return h("li", {}, `${dom(d)}: ${SOURCE[d] || ""}, ${n ? n.toLocaleString("en") + " documents, " : ""}${first}–${last}.`);
+    if (!rows.length && !cnt.length) return h("li", {}, h("strong", {}, dom(d)), ": no source yet.");
+    const n = rows.reduce((a, r) => a + r.n, 0);
+    const items = rows.map(r => `${sourceName(r.source)} (${r.n.toLocaleString("en")}, ${r.first.slice(0, 4)}–${r.last.slice(0, 4)})`);
+    if (cnt.length) items.push(`GDELT article counts (${cnt[0].first.slice(0, 4)}–${cnt[0].last.slice(0, 4)})`);
+    return h("li", {}, h("strong", {}, dom(d)), `: ${n.toLocaleString("en")} documents from `, items.join("; "), ".");
   });
   app.append(h("footer", {},
-    h("p", {}, h("strong", {}, "What we read")), h("ul", {}, rows),
-    h("p", {}, `Updated ${new Date(D.meta.generated).toLocaleDateString("en", { day: "numeric", month: "long", year: "numeric" })}. `,
-      "EUR-Lex and European Parliament texts are reused with attribution; only counts and short word lists are shown.")));
+    h("h3", {}, "About this project"),
+    h("p", {}, "The QV Observatory follows a small set of words that have become central to how Europe talks about itself. ",
+      "It asks a simple question: when a word becomes fashionable, who says it first — the institutions, the politicians, ",
+      "the press or the artists — and what does the word mean by the time everyone uses it?"),
+    h("p", {}, "It is the machine-reading counterpart to QV's book ", h("i", {}, "Os Últimos Textos Humanos"),
+      ": the machine reads Europe, and QV writes back."),
+    h("h4", {}, "What we read"), h("ul", {}, groups),
+    h("h4", {}, "How to read the numbers"),
+    h("ul", {},
+      h("li", {}, "A percentage is the share of documents that use the word at least once, not how many times it is said."),
+      h("li", {}, "Sources start at different dates, so “first seen” means first in our collection, not first ever."),
+      h("li", {}, "News and art come from feeds that only carry recent articles; those lanes grow every day."),
+      h("li", {}, "“Follows by 12 months” means the two curves match best when one is shifted by a year. It is a pattern, not proof that one caused the other."),
+      h("li", {}, "We count words, not meanings: “care” includes “health care” and “take care”.")),
+    h("h4", {}, "Rights"),
+    h("p", {}, "EU and European Parliament texts are reused with attribution and may be quoted. News and art texts are copyrighted: ",
+      "we only count them and never show their text."),
+    h("p", { class: "muted" }, `Updated ${new Date(D.meta.generated).toLocaleDateString("en", { day: "numeric", month: "long", year: "numeric" })}.`)));
 }
 
 init();

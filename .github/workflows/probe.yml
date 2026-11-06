@@ -16,5 +16,6 @@ jobs:
         with:
           python-version: "3.13"
       - run: python -m observatory probe europarl
+      - run: python -m observatory probe rss
       - run: for l in en fr nl pt; do python -m observatory probe eurlex --lang $l || exit 1; done
       - run: python -m observatory probe gdelt || true   # informational: GDELT DOC API throttles CI
