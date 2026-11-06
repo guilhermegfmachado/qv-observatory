@@ -21,6 +21,10 @@ on:
         description: "Delete stored EUR-Lex texts and fetch them again (after a text-cleaning fix)"
         type: boolean
         default: false
+      rebuild_mentions:
+        description: "Rescan every document for concept mentions"
+        type: boolean
+        default: false
       oie_limit:
         description: "Sentences for triple extraction (0 = skip)"
         default: "2000"
@@ -100,7 +104,8 @@ jobs:
           path: data
           key: corpus-${{ github.run_id }}
 
-      - run: python -m observatory --db "$DB" mentions
+      - name: Scan for concept mentions
+        run: python -m observatory --db "$DB" mentions ${{ inputs.rebuild_mentions && '--rebuild' || '' }}
 
       - name: Extract triples
         if: env.OIE_LIMIT != '0' && env.HAS_KEY == 'true'
