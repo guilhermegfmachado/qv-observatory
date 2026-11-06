@@ -10,7 +10,7 @@ import datetime as dt
 from collections import Counter
 from pathlib import Path
 
-from .ingest import creative_europe, eurlex, europarl, gdelt, parlamint
+from .ingest import creative_europe, eurlex, europarl, gdelt, parlamint, rss
 
 
 def probe_eurlex(lang: str = "en", days: int = 60) -> bool:
@@ -71,6 +71,24 @@ def probe_europarl() -> bool:
     for d in docs:
         print(f"europarl: {d.external_id}: {len(d.text)} chars: {d.text[:100]!r}")
     return bool(docs)
+
+
+def probe_rss(feeds: list[dict]) -> bool:
+    """Every feed answers with dated items; for paged feeds, report how far back page 30 reaches."""
+    ok = 0
+    for f in feeds:
+        items = rss.fetch(f["url"]) or []
+        line = f"rss: {f['domain']}/{f['lang']} {f['name']}: {len(items)} items"
+        if items:
+            ok += 1
+            line += f", {min(i['date'] for i in items)}..{max(i['date'] for i in items)}"
+        if f.get("paged") and items:
+            for n in (2, 30):
+                page = rss.fetch(rss._page_url(f["url"], n)) or []
+                line += f"; page {n}: {len(page)} items" + (f" from {min(i['date'] for i in page)}" if page else "")
+        print(line)
+    print(f"rss: {ok}/{len(feeds)} feeds answered")
+    return ok >= len(feeds) * 0.7   # some feeds fail on a given day; most must work
 
 
 def probe_parlamint(root: Path) -> bool:

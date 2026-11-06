@@ -146,6 +146,35 @@ class PipelineTest(unittest.TestCase):
         n = con.execute("SELECT COUNT(*) FROM mentions WHERE concept='resilience'").fetchone()[0]
         self.assertEqual(n, 1)
 
+    def test_examples_quote_only_permitted_sources(self):
+        from observatory.analysis import examples
+        con = db.connect(self.tmp / "ex.sqlite")
+        self.addCleanup(con.close)
+        good = "Member States should strengthen the resilience of critical infrastructure against new threats and shocks."
+        base.insert(con, [
+            base.Document(source="eurlex", external_id="A:en", domain="policy", lang="en", date="2021-03-01",
+                          title="52021DC0001", url="u", text="COM(2021) 1 final. " + good),
+            base.Document(source="rss:frieze", external_id="B", domain="art", lang="en", date="2021-03-01",
+                          text="Artists explore the resilience of communities after long years of crisis and loss."),
+        ])
+        mentions.run(con, self.cfg["_concepts"])
+        ex = examples.examples(con, self.cfg)["resilience"]
+        self.assertEqual([e["text"] for e in ex], [good])
+
+    def test_rss_parses_rss_and_atom(self):
+        from observatory.ingest import rss
+        rss2 = b"""<?xml version="1.0"?><rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+        <channel><item><title>Care &amp; repair</title><link>https://x/1</link><guid>g1</guid>
+        <pubDate>Tue, 03 Nov 2026 10:00:00 +0000</pubDate><description>&lt;p&gt;An &lt;b&gt;exhibition&lt;/b&gt; on care.&lt;/p&gt;</description></item>
+        <item><title>No date</title><link>https://x/2</link></item></channel></rss>"""
+        atom = b"""<feed xmlns="http://www.w3.org/2005/Atom"><entry><title>Resilience</title>
+        <link href="https://y/1"/><id>tag:y,1</id><updated>2026-10-01T08:00:00Z</updated>
+        <summary>Summary text.</summary></entry></feed>"""
+        self.assertEqual(rss.parse(rss2), [{"id": "g1", "url": "https://x/1", "title": "Care & repair",
+                                           "date": "2026-11-03", "text": "Care & repair. An exhibition on care."}])
+        self.assertEqual(rss.parse(atom)[0]["date"], "2026-10-01")
+        self.assertEqual(rss._page_url("https://a/feed/", 3), "https://a/feed/?paged=3")
+
     def test_limit_never_splits_a_document(self):
         items = list(oie.candidates(self.con, self.cfg["_concepts"], 600, limit=3))
         doc = items[-1][0]

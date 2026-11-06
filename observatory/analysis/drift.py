@@ -43,6 +43,7 @@ def run(con: sqlite3.Connection, cfg: dict) -> dict:
 
     # ctx[(concept, lang)][year] -> collocate counts
     ctx: dict[tuple[str, str], dict[str, Counter]] = defaultdict(lambda: defaultdict(Counter))
+    forms: dict[tuple[str, str], Counter] = defaultdict(Counter)  # surface forms actually used
     for row in con.execute("SELECT lang, date, text FROM documents"
                            " WHERE id IN (SELECT DISTINCT doc_id FROM mentions)"):
         toks = tokens(row["text"])
@@ -54,6 +55,7 @@ def run(con: sqlite3.Connection, cfg: dict) -> dict:
                     continue
                 for i, t in enumerate(toks):
                     if pat.fullmatch(t):
+                        forms[(key, lang)][t] += 1
                         for w in toks[max(0, i - win): i] + toks[i + 1: i + 1 + win]:
                             if len(w) > 2 and w not in stop[lang] and not pat.fullmatch(w):
                                 ctx[(key, lang)][year][w] += 1
@@ -84,6 +86,7 @@ def run(con: sqlite3.Connection, cfg: dict) -> dict:
                 if sa and sb:
                     drift.append({"from": a, "to": b, "drift": round(1 - len(sa & sb) / len(sa | sb), 3),
                                   "entered": sorted(sb - sa)[:10], "left": sorted(sa - sb)[:10]})
-            per_lang[lang] = {"neighbours": {y: neigh[y][:12] for y in years}, "drift": drift}
+            per_lang[lang] = {"neighbours": {y: neigh[y][:12] for y in years}, "drift": drift,
+                              "forms": forms[(key, lang)].most_common(6)}
         out[key] = per_lang
     return out

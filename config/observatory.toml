@@ -38,6 +38,7 @@ wikidata_endpoint = "https://query.wikidata.org/sparql"
 
 [concepts.resilience]
 label = "resilience"
+about = "Borrowed from engineering and ecology (a material or system that bounces back after a shock). Since the 2010s it has become a central word of EU policy: economies, supply chains, democracies and citizens are all asked to be resilient. Critics say it moves responsibility for coping with crises onto individuals."
 en = 'resilien\w*'
 pt = 'resili[eê]n\w*'
 nl = 'veerkracht\w*|weerbaarheid|resilien\w*'
@@ -48,6 +49,7 @@ it = 'resilien\w*'
 
 [concepts.community]
 label = "community"
+about = "An old word with many uses: a village, a group sharing an identity, or the 'European Community' itself. In policy and art it often signals bottom-up participation. Watch for the institutional sense (the Community) mixing with the social one."
 en = 'communit(?:y|ies)'
 pt = 'comunidades?'
 nl = 'gemeenschap\w*'
@@ -58,6 +60,7 @@ it = 'comunit[àa]'
 
 [concepts.sustainability]
 label = "sustainability"
+about = "From forestry (harvest no more than grows back) to the UN's 1987 definition of development that meets present needs without compromising future generations. Now attached to almost anything (finance, growth, tourism), which is part of what this observatory tracks."
 en = 'sustainab\w*'
 pt = 'sustentab\w*|sustent[áa]ve\w*'
 nl = 'duurzaam\w*'
@@ -68,6 +71,7 @@ it = 'sostenibil\w*'
 
 [concepts.care]
 label = "care"
+about = "Care work, healthcare, and since the pandemic an ethics and politics of care, which spread fast in art and academia. In English the word is also very ordinary ('take care'), so its counts include everyday uses."
 en = 'care|caring'
 pt = 'cuidados?|cuidar'
 nl = 'zorg\w*'
@@ -78,6 +82,7 @@ it = 'cura|cure'
 
 [concepts.inclusion]
 label = "inclusion"
+about = "Social inclusion entered EU vocabulary in the 1990s (fighting poverty and exclusion) and later widened to disability, gender and diversity. In art institutions it names access and representation programmes."
 en = 'inclusi\w*'
 pt = 'inclus\w*'
 nl = 'inclusi\w*'
@@ -88,6 +93,7 @@ it = 'inclusi\w*'
 
 [concepts.decolonial]
 label = "decolonial"
+about = "From Latin American theory (Quijano, Mignolo) on the 'coloniality' that outlived colonial rule. Common in art and universities since the late 2010s, still rare in EU policy. A clear test of whether policy follows art or the other way round."
 en = 'decoloni\w*'
 pt = 'descoloni\w*|decoloni\w*'
 nl = 'dekoloni\w*'
@@ -98,6 +104,7 @@ it = 'decoloni\w*'
 
 [concepts.polycrisis]
 label = "polycrisis"
+about = "Used by Edgar Morin in the 1990s and revived in 2022 by Jean-Claude Juncker and Adam Tooze for overlapping crises (pandemic, war, energy, climate). A recent word, so it shows how fast new vocabulary travels."
 en = 'polycris[ie]s'
 pt = 'policrises?'
 nl = 'polycrisis'
@@ -149,3 +156,143 @@ en = "polycrisis"
 fr = "polycrise"
 nl = "polycrisis"
 pt = "policrise"
+
+# RSS / Atom feeds: titles and summaries, polled daily. `paged` feeds (WordPress) also
+# serve older pages, used to backfill history. Copyrighted: counted, never quoted.
+[[feeds]]
+name = "bbc-europe"
+url = "https://feeds.bbci.co.uk/news/world/europe/rss.xml"
+domain = "news"
+lang = "en"
+
+[[feeds]]
+name = "guardian-europe"
+url = "https://www.theguardian.com/world/europe-news/rss"
+domain = "news"
+lang = "en"
+
+[[feeds]]
+name = "euronews"
+url = "https://www.euronews.com/rss?level=theme&name=news"
+domain = "news"
+lang = "en"
+
+[[feeds]]
+name = "france24-europe"
+url = "https://www.france24.com/fr/europe/rss"
+domain = "news"
+lang = "fr"
+
+[[feeds]]
+name = "rfi-europe"
+url = "https://www.rfi.fr/fr/europe/rss"
+domain = "news"
+lang = "fr"
+
+[[feeds]]
+name = "lemonde-europe"
+url = "https://www.lemonde.fr/europe/rss_full.xml"
+domain = "news"
+lang = "fr"
+
+[[feeds]]
+name = "nos"
+url = "https://feeds.nos.nl/nosnieuwsalgemeen"
+domain = "news"
+lang = "nl"
+
+[[feeds]]
+name = "nos-buitenland"
+url = "https://feeds.nos.nl/nosnieuwsbuitenland"
+domain = "news"
+lang = "nl"
+
+[[feeds]]
+name = "vrt"
+url = "https://www.vrt.be/vrtnws/nl.rss.articles.xml"
+domain = "news"
+lang = "nl"
+
+[[feeds]]
+name = "rtp-mundo"
+url = "https://www.rtp.pt/noticias/rss/mundo"
+domain = "news"
+lang = "pt"
+
+[[feeds]]
+name = "publico"
+url = "https://feeds.feedburner.com/PublicoRSS"
+domain = "news"
+lang = "pt"
+
+[[feeds]]
+name = "observador"
+url = "https://observador.pt/feed/"
+domain = "news"
+lang = "pt"
+paged = true
+
+[[feeds]]
+name = "tagesschau"
+url = "https://www.tagesschau.de/xml/rss2/"
+domain = "news"
+lang = "de"
+
+[[feeds]]
+name = "elpais-internacional"
+url = "https://feeds.elpais.com/mrss-s/pages/ep/site/elpais.com/section/internacional/portada"
+domain = "news"
+lang = "es"
+
+[[feeds]]
+name = "ansa-mondo"
+url = "https://www.ansa.it/sito/notizie/mondo/mondo_rss.xml"
+domain = "news"
+lang = "it"
+
+[[feeds]]
+name = "artforum"
+url = "https://www.artforum.com/feed/"
+domain = "art"
+lang = "en"
+paged = true
+
+[[feeds]]
+name = "artnews"
+url = "https://www.artnews.com/feed/"
+domain = "art"
+lang = "en"
+paged = true
+
+[[feeds]]
+name = "hyperallergic"
+url = "https://hyperallergic.com/feed/"
+domain = "art"
+lang = "en"
+paged = true
+
+[[feeds]]
+name = "the-art-newspaper"
+url = "https://www.theartnewspaper.com/rss.xml"
+domain = "art"
+lang = "en"
+
+[[feeds]]
+name = "mousse"
+url = "https://www.moussemagazine.it/feed/"
+domain = "art"
+lang = "en"
+paged = true
+
+[[feeds]]
+name = "connaissance-des-arts"
+url = "https://www.connaissancedesarts.com/feed/"
+domain = "art"
+lang = "fr"
+paged = true
+
+[[feeds]]
+name = "monopol"
+url = "https://www.monopol-magazin.de/rss.xml"
+domain = "art"
+lang = "de"

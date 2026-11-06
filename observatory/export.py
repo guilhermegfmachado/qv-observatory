@@ -6,7 +6,7 @@ import json
 import sqlite3
 from pathlib import Path
 
-from .analysis import agency, drift, migration
+from .analysis import agency, drift, examples, migration
 
 
 def run(con: sqlite3.Connection, cfg: dict, out_path: Path, synthetic: bool = False) -> dict:
@@ -31,7 +31,10 @@ def run(con: sqlite3.Connection, cfg: dict, out_path: Path, synthetic: bool = Fa
         "migration": mig,
         "drift": drift.run(con, cfg),
         "agency": agency.run(con, cfg),
-        "concepts": {k: {"label": c.label, "lexemes": {l: p.pattern for l, p in c.patterns.items()}}
+        "examples": examples.examples(con, cfg),
+        "cooccurrence": examples.cooccurrence(con, cfg),
+        "concepts": {k: {"label": c.label, "about": cfg["concepts"][k].get("about", ""),
+                         "lexemes": {l: p.pattern for l, p in c.patterns.items()}}
                      for k, c in cfg["_concepts"].items()},
     }
     out_path.parent.mkdir(parents=True, exist_ok=True)
