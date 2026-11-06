@@ -22,6 +22,9 @@ def run(con: sqlite3.Connection, cfg: dict, out_path: Path, synthetic: bool = Fa
             "max_lag_months": cfg["analysis"]["max_lag_months"],
             "domains": cfg["domains"],
             "corpus": [dict(r) for r in stats],
+            "by_source": [dict(r) for r in con.execute(
+                "SELECT domain, source, COUNT(*) AS n, MIN(date) AS first, MAX(date) AS last"
+                " FROM documents GROUP BY domain, source ORDER BY domain, n DESC")],
             "counts": [dict(r) for r in con.execute(
                 "SELECT source, domain, lang, COUNT(*) AS days, SUM(hits) AS hits, MIN(date) AS first,"
                 " MAX(date) AS last FROM counts GROUP BY source, domain, lang ORDER BY 1, 3")],

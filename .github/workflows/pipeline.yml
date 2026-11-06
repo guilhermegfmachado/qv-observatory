@@ -92,7 +92,7 @@ jobs:
       - name: Ingest news and art feeds
         continue-on-error: true
         timeout-minutes: 45
-        run: python -m observatory --db "$DB" ingest rss --max-pages 40
+        run: python -m observatory --db "$DB" ingest rss --max-pages 150
 
       - name: Ingest GDELT news volume
         continue-on-error: true   # GDELT throttles shared CI addresses; it resumes next run

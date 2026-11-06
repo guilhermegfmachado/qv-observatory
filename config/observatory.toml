@@ -230,7 +230,6 @@ name = "observador"
 url = "https://observador.pt/feed/"
 domain = "news"
 lang = "pt"
-paged = true
 
 [[feeds]]
 name = "tagesschau"
@@ -269,7 +268,6 @@ name = "hyperallergic"
 url = "https://hyperallergic.com/feed/"
 domain = "art"
 lang = "en"
-paged = true
 
 [[feeds]]
 name = "the-art-newspaper"
@@ -282,13 +280,6 @@ name = "mousse"
 url = "https://www.moussemagazine.it/feed/"
 domain = "art"
 lang = "en"
-paged = true
-
-[[feeds]]
-name = "connaissance-des-arts"
-url = "https://www.connaissancedesarts.com/feed/"
-domain = "art"
-lang = "fr"
 paged = true
 
 [[feeds]]

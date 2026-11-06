@@ -23,7 +23,7 @@ def main(argv=None):
     ing.add_argument("path", nargs="?", help="folder / ParlaMint dir / Creative Europe CSV")
     ing.add_argument("--lang", default="en")
     ing.add_argument("--langs", default="en,fr,nl,pt", help="gdelt: comma-separated languages")
-    ing.add_argument("--max-pages", type=int, default=30, help="rss: pages to read back on paged feeds")
+    ing.add_argument("--max-pages", type=int, default=150, help="rss: pages to read back per paged feed per run")
     ing.add_argument("--start", help="eurlex: YYYY-MM-DD")
     ing.add_argument("--end", help="eurlex: YYYY-MM-DD")
     ing.add_argument("--limit", type=int, default=500)
@@ -85,7 +85,13 @@ def main(argv=None):
             docs = eurlex.read(start, end, lang=args.lang, limit=args.limit, skip=stored)
         elif args.source == "rss":
             stored = {r[0] for r in con.execute("SELECT id FROM documents WHERE source LIKE 'rss:%'")}
-            docs = rss.read(cfg.get("feeds", []), skip=stored, max_pages=args.max_pages)
+            state = dict(con.execute("SELECT name, deepest_page FROM feed_state"))
+            ins, skip = base.insert(con, rss.read(cfg.get("feeds", []), skip=stored, state=state,
+                                                  max_pages=args.max_pages))
+            con.executemany("INSERT OR REPLACE INTO feed_state VALUES (?, ?)", state.items())
+            con.commit()
+            print(f"inserted {ins}, already present {skip}")
+            return
         elif args.source == "europarl":
             stored = {r[0] for r in con.execute("SELECT DISTINCT title FROM documents WHERE source='europarl'")}
             docs = europarl.read(start=args.start or "2014-01-01", limit=args.limit, skip=stored)

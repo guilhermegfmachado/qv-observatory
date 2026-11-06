@@ -175,6 +175,28 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(rss.parse(atom)[0]["date"], "2026-10-01")
         self.assertEqual(rss._page_url("https://a/feed/", 3), "https://a/feed/?paged=3")
 
+    def test_rss_backfill_continues_across_runs(self):
+        from observatory.ingest import rss
+        # A paged archive: page n holds items n*10 .. n*10+9, newest first.
+        def fake_fetch(url):
+            n = int(url.split("paged=")[1]) if "paged=" in url else 1
+            if n > 50:
+                return []
+            return [{"id": f"i{n}-{j}", "url": "", "title": f"t{n}-{j}", "text": f"t{n}-{j}",
+                     "date": f"2026-{12 - n // 5:02d}-01"} for j in range(10)]
+        feed = [{"name": "a", "url": "https://a/feed/", "domain": "art", "lang": "en", "paged": True}]
+        orig, rss.fetch = rss.fetch, fake_fetch
+        try:
+            state, seen = {}, set()
+            run1 = list(rss.read(feed, skip=seen, state=state, max_pages=5, pause=0, today="2027-01-01"))
+            seen |= {d.id for d in run1}
+            run2 = list(rss.read(feed, skip=seen, state=state, max_pages=5, pause=0, today="2027-01-01"))
+        finally:
+            rss.fetch = orig
+        self.assertGreater(len(run2), 0)                      # second run went deeper
+        self.assertTrue(set(d.id for d in run2).isdisjoint(d.id for d in run1))
+        self.assertGreater(state["a"], 5)
+
     def test_limit_never_splits_a_document(self):
         items = list(oie.candidates(self.con, self.cfg["_concepts"], 600, limit=3))
         doc = items[-1][0]

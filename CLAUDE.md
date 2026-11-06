@@ -29,6 +29,7 @@ python -m observatory ingest eurlex --start 2015-01-01 --end 2026-01-01 --lang e
 python -m observatory ingest eurlex --incremental --lang en   # resume from latest stored date
 python -m observatory ingest europarl --limit 150   # EP plenary debates, one doc per sitting x language
 python -m observatory ingest gdelt                  # news volume counts (GDELT DOC API), en,fr,nl,pt
+python -m observatory ingest rss                    # news and art press feeds listed in [[feeds]]
 python -m observatory mentions
 python -m observatory oie --dry-run           # always dry-run first: prints request count
 python -m observatory oie --limit 2000
@@ -75,7 +76,12 @@ when the assumption fails.
   blocks scripts), GDELT DOC API (news; counts only, in the `counts` table; throttles CI, resumes).
 - `.github/workflows/probe.yml` runs the live probes on every branch push touching ingestion: the
   way to test source changes, since the dev container cannot reach EU hosts.
-- Art discourse has no automated source yet. ParlaMint and Creative Europe are manual downloads.
+- RSS feeds (`[[feeds]]` in the config): news (15 feeds, 7 languages) and art press (Artforum,
+  ARTnews, Hyperallergic, The Art Newspaper, Mousse, Monopol). Titles and summaries only, counted
+  but never quoted. `paged` WordPress feeds backfill history; depth is kept in `feed_state`.
+- Example sentences on the site come only from EUR-Lex and European Parliament (`analysis/examples.py`).
+- e-flux announcements, Frieze and Metropolis M did not answer scripted requests (checked 2026-11).
+  ParlaMint and Creative Europe are manual downloads.
 
 ## Roadmap
 - v0.2 Sources: GDELT GKG (news themes), CC-News (multilingual news text), e-flux announcements

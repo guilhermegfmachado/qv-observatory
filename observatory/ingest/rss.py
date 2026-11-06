@@ -90,31 +90,55 @@ def _page_url(url: str, n: int) -> str:
     return url if n == 1 else f"{url}{'&' if '?' in url else '?'}paged={n}"
 
 
-def read(feeds: list[dict], skip: set[str] = frozenset(), max_pages: int = 30, pause: float = 1.5,
-         today: str | None = None):
-    """Yield documents from every feed. `skip`: document ids already stored."""
+def _items_to_docs(feed: dict, items: list[dict], seen: set[str], today: str) -> list[Document]:
+    docs = []
+    for it in items:
+        doc = Document(source=f"rss:{feed['name']}", external_id=it["id"], domain=feed["domain"],
+                       lang=feed["lang"], date=it["date"], title=it["title"][:300], url=it["url"], text=it["text"])
+        if doc.id not in seen and it["date"] <= today:
+            seen.add(doc.id)
+            docs.append(doc)
+    return docs
+
+
+def read(feeds: list[dict], skip: set[str] = frozenset(), state: dict | None = None, max_pages: int = 150,
+         pause: float = 1.0, today: str | None = None):
+    """Yield documents from every feed. `skip`: document ids already stored.
+
+    Paged feeds are read in two passes: forward from page 1 until a page brings nothing new,
+    then backward from the deepest page reached on earlier runs (kept in `state`, name ->
+    page, updated in place), up to `max_pages` further pages. New items push old ones to
+    later pages, so the backward pass restarts two pages early; duplicates are skipped."""
     today = today or dt.date.today().isoformat()
     seen = set(skip)
+    state = state if state is not None else {}
     for feed in feeds:
-        name, pages = feed["name"], (max_pages if feed.get("paged") else 1)
-        new = 0
-        for n in range(1, pages + 1):
-            items = fetch(_page_url(feed["url"], n))
-            if n > 1:
-                time.sleep(pause)
-            if not items:
-                break
-            fresh = 0
-            for it in items:
-                doc = Document(source=f"rss:{name}", external_id=it["id"], domain=feed["domain"],
-                               lang=feed["lang"], date=it["date"], title=it["title"][:300],
-                               url=it["url"], text=it["text"])
-                if doc.id in seen or it["date"] > today:
-                    continue
-                seen.add(doc.id)
-                fresh += 1
-                yield doc
-            new += fresh
-            if n > 1 and fresh == 0:
-                break           # reached what earlier runs already stored
-        print(f"  {name}: {new} new items")
+        name, new = feed["name"], 0
+        items = fetch(feed["url"])
+        if items:
+            docs = _items_to_docs(feed, items, seen, today)
+            new += len(docs)
+            yield from docs
+        if feed.get("paged") and items:
+            n = 2
+            while n <= max_pages:                       # forward: catch up with recent pages
+                page = fetch(_page_url(feed["url"], n)); time.sleep(pause)
+                docs = _items_to_docs(feed, page or [], seen, today)
+                new += len(docs)
+                yield from docs
+                if not page or not docs:
+                    break
+                n += 1
+            start = max(n, state.get(name, 0) - 2)
+            for m in range(start, start + max_pages):   # backward: continue the backfill
+                page = fetch(_page_url(feed["url"], m)); time.sleep(pause)
+                if page is None:
+                    break                               # error: try again next run
+                if not page:
+                    state[name] = m                     # reached the end of the archive
+                    break
+                docs = _items_to_docs(feed, page, seen, today)
+                new += len(docs)
+                yield from docs
+                state[name] = max(state.get(name, 0), m)
+        print(f"  {name}: {new} new items" + (f", backfill at page {state[name]}" if name in state else ""))
