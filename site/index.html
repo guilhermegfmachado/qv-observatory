@@ -5,32 +5,57 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>QV Observatory</title>
 <style>
-:root { --bg: #fff; --fg: #000; --line: #999; color-scheme: light; }
+:root { --bg: #fff; --fg: #111; --muted: #555; --line: #bbb; --soft: #f3f3f3; --accent: #000; color-scheme: light; }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) { --bg: #111; --fg: #eee; --line: #666; color-scheme: dark; }
+  :root:not([data-theme="light"]) { --bg: #111; --fg: #eee; --muted: #aaa; --line: #555; --soft: #1d1d1d; --accent: #fff; color-scheme: dark; }
 }
-:root[data-theme="dark"] { --bg: #111; --fg: #eee; --line: #666; color-scheme: dark; }
-body { background: var(--bg); color: var(--fg); font-family: "Times New Roman", Times, serif; max-width: 60rem; margin: 0 auto; padding: 1rem; }
-table { border-collapse: collapse; }
-th, td { border: 1px solid var(--line); padding: .2rem .5rem; text-align: left; vertical-align: top; }
-svg { display: block; width: 100%; max-width: 60rem; height: auto; }
-svg text { fill: var(--fg); font: 13px "Times New Roman", Times, serif; }
+:root[data-theme="dark"] { --bg: #111; --fg: #eee; --muted: #aaa; --line: #555; --soft: #1d1d1d; --accent: #fff; color-scheme: dark; }
+* { box-sizing: border-box; }
+html { font-size: 20px; -webkit-text-size-adjust: 100%; }
+body { background: var(--bg); color: var(--fg); font-family: "Times New Roman", Times, serif; line-height: 1.5;
+       max-width: 44rem; margin: 0 auto; padding: 1.25rem 1rem 3rem; }
+h1 { font-size: 2.2rem; line-height: 1.1; margin: .5rem 0 .75rem; }
+h2 { font-size: 1.9rem; margin: 2rem 0 .5rem; }
+h3 { font-size: 1.35rem; margin: 2.25rem 0 .5rem; }
+p, li { font-size: 1rem; }
+.lede { font-size: 1.15rem; }
+.muted { color: var(--muted); }
+.note { background: var(--soft); padding: .8rem 1rem; border-left: 4px solid var(--accent); }
+.picker { display: flex; flex-wrap: wrap; gap: .5rem; margin: .5rem 0 0; padding: 0; list-style: none; }
+.picker a { display: inline-block; padding: .5rem .9rem; border: 2px solid var(--fg); border-radius: 2rem;
+            color: var(--fg); text-decoration: none; font-size: 1.05rem; min-height: 44px; }
+.picker a[aria-current="true"] { background: var(--fg); color: var(--bg); }
+.summary li { margin-bottom: .6rem; }
+.panel { margin: 1.25rem 0 1.75rem; }
+.panel h4 { font-size: 1.1rem; margin: 0 0 .15rem; }
+.panel p { margin: 0 0 .4rem; color: var(--muted); }
+svg { display: block; width: 100%; height: auto; }
+svg text { fill: var(--muted); font-family: "Times New Roman", Times, serif; }
+details { margin: 1rem 0; border-top: 1px solid var(--line); padding-top: .6rem; }
+summary { cursor: pointer; font-size: 1.05rem; min-height: 44px; display: flex; align-items: center; }
 .scroll { overflow-x: auto; }
-select { font: inherit; }
+table { border-collapse: collapse; font-size: .9rem; }
+th, td { border: 1px solid var(--line); padding: .3rem .5rem; text-align: left; vertical-align: top; }
+.words { font-size: 1.05rem; }
+.words b { font-weight: normal; text-decoration: underline; }
+select { font: inherit; font-size: 1rem; padding: .3rem; min-height: 44px; }
+footer { margin-top: 3rem; border-top: 1px solid var(--line); padding-top: 1rem; font-size: .85rem; color: var(--muted); }
 </style>
 </head>
 <body>
 <h1>QV Observatory</h1>
-<p>How concepts travel through European discourse: EU policy, parliaments, news and art writing.</p>
+<p class="lede">How words like <i>resilience</i>, <i>care</i> or <i>sustainability</i> spread through Europe:
+from EU policy, to parliament, to the news, and to art. We read the documents and count.</p>
 <div id="app"><p>Loading…</p></div>
 <script>
 const LANG = { en: "English", pt: "Portuguese", nl: "Dutch", fr: "French", de: "German", es: "Spanish", it: "Italian" };
+const PLACE = { policy: "EU policy documents", parliament: "European Parliament debates", news: "news articles", art: "writing about art" };
 let D, driftLang;
 
 const h = (tag, attrs = {}, ...kids) => {
   const n = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
-  for (const k of kids.flat()) if (k != null) n.append(k instanceof Node ? k : String(k));
+  for (const k of kids.flat()) if (k != null && k !== false) n.append(k instanceof Node ? k : String(k));
   return n;
 };
 const s = (tag, attrs = {}) => {
@@ -38,10 +63,11 @@ const s = (tag, attrs = {}) => {
   for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
   return n;
 };
-const table = (head, rows) => h("table", {},
-  h("thead", {}, h("tr", {}, head.map(x => h("th", {}, x)))),
-  h("tbody", {}, rows.map(r => h("tr", {}, r.map(x => h("td", {}, x))))));
 const dom = d => D.meta.domains[d] || d;
+const pct = v => v === 0 ? "0%" : v >= 0.1 ? `${Math.round(v * 100)}%` : v >= 0.01 ? `${(v * 100).toFixed(1)}%` : `${(v * 100).toFixed(2)}%`;
+const monthName = p => new Date(p + "-01T00:00:00Z").toLocaleDateString("en", { month: "long", year: "numeric", timeZone: "UTC" });
+const duration = m => m < 12 ? `${m} month${m === 1 ? "" : "s"}` : m % 12 === 0 ? `${m / 12} year${m === 12 ? "" : "s"}`
+  : `about ${Math.round(m / 6) / 2} years`;
 
 async function init() {
   try {
@@ -49,12 +75,31 @@ async function init() {
     if (!r.ok) throw new Error(r.status);
     D = await r.json();
   } catch {
-    document.getElementById("app").replaceChildren(h("p", {},
-      "No data yet. Run python -m observatory export, then serve this folder."));
+    document.getElementById("app").replaceChildren(h("p", {}, "No data yet."));
     return;
   }
   addEventListener("hashchange", render);
+  let lastW = innerWidth, t;
+  addEventListener("resize", () => { clearTimeout(t); t = setTimeout(() => { if (innerWidth !== lastW) { lastW = innerWidth; render(); } }, 200); });
   render();
+}
+
+// Monthly rates -> yearly share of documents, weighting each month by its document count.
+function yearly(mig, d) {
+  const P = D.migration.periods, rates = mig.series[d] || [], docs = D.migration.documents[d] || [];
+  const acc = {};
+  P.forEach((p, i) => {
+    if (rates[i] == null) return;
+    const y = p.slice(0, 4);
+    acc[y] ??= { hits: 0, n: 0 };
+    acc[y].hits += rates[i] * docs[i];
+    acc[y].n += docs[i];
+  });
+  return Object.entries(acc).filter(([, a]) => a.n > 0).map(([y, a]) => [y, a.hits / a.n]);
+}
+
+function activeDomains() {
+  return Object.keys(D.meta.domains).filter(d => (D.migration.documents[d] || []).some(n => n > 0));
 }
 
 function render() {
@@ -62,129 +107,155 @@ function render() {
   const want = decodeURIComponent(location.hash.slice(1));
   const k = keys.includes(want) ? want : keys.find(x => D.migration.concepts[x]?.mentions) || keys[0];
   const mig = D.migration.concepts[k] || {};
+  const label = D.concepts[k].label;
   const app = document.getElementById("app");
   app.replaceChildren();
 
-  if (D.meta.synthetic) app.append(h("p", {}, h("b", {}, "Note: "),
-    "synthetic test data. These patterns were planted to check the pipeline and say nothing about real discourse."));
+  if (D.meta.synthetic) app.append(h("p", { class: "note" }, "This is test data, not real results."));
 
-  app.append(h("p", {}, "Concepts: ", keys.flatMap((x, i) => {
-    const n = D.migration.concepts[x]?.mentions || 0;
-    const label = `${D.concepts[x].label} (${n.toLocaleString("en")})`;
-    return [i ? " · " : "", x === k ? h("b", {}, label) : h("a", { href: "#" + x }, label)];
-  })));
+  app.append(h("p", {}, "Pick a word:"));
+  app.append(h("ul", { class: "picker" }, keys.map(x =>
+    h("li", {}, h("a", { href: "#" + x, "aria-current": x === k ? "true" : "false" }, D.concepts[x].label)))));
 
-  app.append(h("h2", {}, D.concepts[k].label));
-  if (!mig.series) { app.append(h("p", {}, "No mentions in the corpus yet.")); return footer(app); }
+  app.append(h("h2", {}, label));
+  const domains = activeDomains();
+  const years = Object.fromEntries(domains.map(d => [d, yearly(mig, d)]));
 
-  const firsts = mig.first_by_lang || [];
-  if (firsts.length) {
-    app.append(h("h3", {}, "First use per language"));
-    app.append(table(["Language", "First seen", "Domain"], firsts.map(f => [LANG[f.lang] || f.lang, f.date, dom(f.domain)])));
+  // 1. Plain-language summary
+  const facts = [];
+  for (const d of domains) {
+    const ys = years[d];
+    if (!ys.length) continue;
+    const [y0, v0] = ys[0], [y1, v1] = ys[ys.length - 1];
+    if (v1 === 0 && v0 === 0) { facts.push(`It does not appear in ${PLACE[d]} yet.`); continue; }
+    const trend = ys.length < 2 ? "" : v1 > v0 * 1.25 ? `, up from ${pct(v0)} in ${y0}` : v1 < v0 * 0.8 ? `, down from ${pct(v0)} in ${y0}` : `, about the same as in ${y0}`;
+    const share = v1 >= 0.005 ? `about ${pct(v1)} of ${PLACE[d]} (${y1})` : `under 1% of ${PLACE[d]} (${y1})`;
+    facts.push(`The word “${label}” appears in ${share}${trend}.`);
   }
-
-  app.append(h("h3", {}, "Usage over time"));
-  app.append(h("p", {}, "Share of documents in each domain that use the concept, per period. ",
-    "The vertical mark is the onset: the first period reaching a quarter of the domain's peak."));
-  app.append(h("div", { class: "scroll" }, chart(mig)));
-
-  const lags = (mig.lags || []).filter(l => l.lag > 0).slice(0, 6);
-  if (lags.length) {
-    const unit = D.migration.granularity === "month" ? "months" : "years";
-    app.append(h("h3", {}, "Which domain follows which"));
-    app.append(table(["Follower", "Leader", `Lag (${unit})`, "Correlation r", "Periods compared"],
-      lags.map(l => [dom(l.follow), dom(l.lead), l.lag, l.r.toFixed(2), l.periods ?? ""])));
-  } else {
-    app.append(h("h3", {}, "Which domain follows which"));
-    app.append(h("p", {}, "Not enough evidence yet: a lag needs at least 30 mentioning documents in each domain ",
-      "and 12 periods where both have data."));
+  for (const l of usableLags(mig)) {
+    const who = PLACE[l.follow][0].toUpperCase() + PLACE[l.follow].slice(1);
+    facts.push(`${who} tend to pick it up ${duration(l.lag)} after ${PLACE[l.lead]} (${strength(l.r)} evidence).`);
   }
+  if ((mig.mentions || 0) < 30) facts.push(`It is still rare: only ${mig.mentions || 0} documents use it, too few to draw conclusions.`);
+  app.append(h("h3", {}, "In short"));
+  app.append(h("ul", { class: "summary" }, facts.map(f => h("li", {}, f))));
 
-  drift(app, D.drift[k] || {});
-  const ag = D.agency[k];
-  if (ag) {
-    app.append(h("h3", {}, "Concept as grammatical subject"));
-    app.append(h("p", {}, `Share of ${ag.triples.toLocaleString("en")} extracted relations where the concept is the subject.`));
-    app.append(table(["Domain", "Share"], Object.entries(ag.by_domain).map(([d, v]) => [dom(d), Math.round(v.agency * 100) + "%"])));
-    if (ag.agent_relations.length) app.append(h("p", {}, "Most frequent relations: " +
-      ag.agent_relations.slice(0, 8).map(([r]) => r).join(", ") + "."));
+  // 2. Charts per domain
+  app.append(h("h3", {}, "How often it is used, year by year"));
+  app.append(h("p", {}, "Each line shows the share of documents that use the word. Higher means more common. ",
+    "Each chart has its own scale: read the percentages on the left."));
+  const width = Math.max(280, Math.min(app.clientWidth || 600, 880));
+  for (const d of domains) {
+    const ys = years[d];
+    const panel = h("div", { class: "panel" }, h("h4", {}, dom(d)));
+    if (!ys.length) { panel.append(h("p", {}, "No data for this period.")); app.append(panel); continue; }
+    const peak = ys.reduce((a, b) => (b[1] > a[1] ? b : a));
+    panel.append(h("p", {}, `Highest: ${pct(peak[1])} of documents, in ${peak[0]}.`));
+    panel.append(chart(ys, Math.max(0.0001, peak[1]) * 1.1, width));
+    app.append(panel);
   }
+  const missing = Object.keys(D.meta.domains).filter(d => !domains.includes(d));
+  if (missing.length) app.append(h("p", { class: "muted" }, `No data yet for ${missing.map(dom).join(" and ")}.`));
+
+  // 3. Company it keeps
+  wordsSection(app, label, D.drift[k] || {});
+
+  // 4. More detail
+  details(app, mig);
   footer(app);
 }
 
-function chart(mig) {
-  const P = D.migration.periods, doms = activeDomains();
-  const W = 900, L = 110, laneH = 50, gap = 12, axis = 20, H = doms.length * (laneH + gap) + axis;
-  const x = i => L + (i / Math.max(1, P.length - 1)) * (W - L - 30);
-  const svg = s("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Usage rate over time per domain" });
-  doms.forEach((d, li) => {
-    const base = li * (laneH + gap) + laneH, vals = mig.series[d] || [];
-    const peak = Math.max(1e-4, ...vals.filter(v => v != null));
-    svg.append(s("line", { x1: L, x2: W - 30, y1: base, y2: base, stroke: "var(--line)" }));
-    const t = s("text", { x: 0, y: base - laneH / 2 + 4 }); t.textContent = dom(d); svg.append(t);
-    let p = "", open = false;
-    vals.forEach((v, i) => {
-      if (v == null) { open = false; return; }
-      p += `${open ? "L" : "M"}${x(i).toFixed(1)},${(base - v / peak * (laneH - 4)).toFixed(1)}`; open = true;
-    });
-    if (p) svg.append(s("path", { d: p, fill: "none", stroke: "var(--fg)", "stroke-width": 1.25 }));
-    const oi = P.indexOf(mig.onsets[d]);
-    if (oi >= 0) svg.append(s("line", { x1: x(oi), x2: x(oi), y1: base - laneH, y2: base, stroke: "var(--fg)", "stroke-width": 2 }));
-  });
-  [...new Set(P.map(p => p.slice(0, 4)))].forEach(y => {
-    const t = s("text", { x: x(P.findIndex(p => p.startsWith(y))), y: H - 4, "text-anchor": "middle" });
-    t.textContent = y; svg.append(t);
+function strength(r) { return r >= 0.6 ? "strong" : r >= 0.45 ? "moderate" : "weak"; }
+function usableLags(mig) {
+  const max = D.meta.max_lag_months ?? 36;
+  // Only lags inside the search window and based on at least two years of overlapping months.
+  return (mig.lags || []).filter(l => l.lag > 0 && l.lag < max && (l.periods ?? 0) >= 24);
+}
+
+// Drawn at the real on-screen width, so text keeps its size on phones and desktops.
+function chart(ys, max, W) {
+  const H = Math.round(Math.max(170, Math.min(240, W * 0.4))), L = 58, R = 16, T = 14, B = 34;
+  const x = i => L + (ys.length === 1 ? (W - L - R) / 2 : (i / (ys.length - 1)) * (W - L - R));
+  const y = v => T + (1 - v / max) * (H - T - B);
+  const svg = s("svg", { viewBox: `0 0 ${W} ${H}`, width: W, height: H, role: "img",
+    "aria-label": ys.map(([yr, v]) => `${yr}: ${pct(v)}`).join(", ") });
+  for (const v of [0, max / 2, max]) {
+    svg.append(s("line", { x1: L, x2: W - R, y1: y(v), y2: y(v), stroke: "var(--line)", "stroke-width": 1 }));
+    const t = s("text", { x: L - 8, y: y(v) + 5, "text-anchor": "end", "font-size": 15 }); t.textContent = pct(v); svg.append(t);
+  }
+  svg.append(s("polyline", { points: ys.map(([, v], i) => `${x(i)},${y(v)}`).join(" "), fill: "none",
+    stroke: "var(--fg)", "stroke-width": 3.5, "stroke-linejoin": "round", "stroke-linecap": "round" }));
+  ys.forEach(([, v], i) => svg.append(s("circle", { cx: x(i), cy: y(v), r: 4.5, fill: "var(--fg)" })));
+  const every = Math.ceil(ys.length / Math.max(3, Math.floor(W / 90)));
+  ys.forEach(([yr], i) => {
+    if (i % every && i !== ys.length - 1) return;
+    const anchor = i === ys.length - 1 && ys.length > 1 ? "end" : i === 0 && ys.length > 1 ? "start" : "middle";
+    const t = s("text", { x: x(i), y: H - 8, "text-anchor": anchor, "font-size": 16 }); t.textContent = yr; svg.append(t);
   });
   return svg;
 }
 
-function drift(app, byLang) {
+function wordsSection(app, label, byLang) {
   const langs = Object.keys(byLang);
-  app.append(h("h3", {}, "Collocates per year"));
-  if (!langs.length) { app.append(h("p", {}, "Not enough context yet to measure drift.")); return; }
+  app.append(h("h3", {}, "Words used next to it"));
+  if (!langs.length) { app.append(h("p", {}, "Not enough text yet to show this.")); return; }
   driftLang = langs.includes(driftLang) ? driftLang : (langs.includes("en") ? "en" : langs[0]);
-  const sel = h("select", { id: "lang" }, langs.map(l => {
-    const o = h("option", { value: l }, LANG[l] || l); if (l === driftLang) o.selected = true; return o;
-  }));
-  sel.addEventListener("change", () => { driftLang = sel.value; render(); });
-  app.append(h("p", {}, h("label", { for: "lang" }, "Language: "), sel,
-    " Drift is the share of the list that changed since the previous year."));
-  const { neighbours, drift } = byLang[driftLang];
-  const by = Object.fromEntries(drift.map(d => [d.to, d]));
-  app.append(table(["Year", "Strongest collocates", "Drift", "New", "Dropped"],
-    Object.entries(neighbours).map(([y, list]) => {
-      const d = by[y];
-      return [y, list.map(([w]) => w).join(", "), d ? d.drift.toFixed(2) : "", d ? d.entered.join(", ") : "", d ? d.left.join(", ") : ""];
-    })));
+  const { neighbours } = byLang[driftLang];
+  const yrs = Object.keys(neighbours);
+  const first = yrs[0], last = yrs[yrs.length - 1];
+  const top = yr => neighbours[yr].slice(0, 8).map(([w]) => w);
+  const newer = new Set(top(last).filter(w => !top(first).includes(w)));
+  app.append(h("p", {}, `The words that appear most often around “${label}” show what it is being used for.`));
+  if (langs.length > 1) {
+    const sel = h("select", { id: "lang" }, langs.map(l => {
+      const o = h("option", { value: l }, LANG[l] || l); if (l === driftLang) o.selected = true; return o;
+    }));
+    sel.addEventListener("change", () => { driftLang = sel.value; render(); });
+    app.append(h("p", {}, h("label", { for: "lang" }, "Language: "), sel));
+  }
+  app.append(h("p", { class: "words" }, h("strong", {}, `${first}: `), top(first).join(", ")));
+  if (last !== first) {
+    app.append(h("p", { class: "words" }, h("strong", {}, `${last}: `),
+      top(last).flatMap((w, i) => [i ? ", " : "", newer.has(w) ? h("b", {}, w) : w])));
+    if (newer.size) app.append(h("p", { class: "muted" }, "Underlined words are new since " + first + "."));
+  }
 }
 
-function activeDomains() {
-  return Object.keys(D.meta.domains).filter(d => (D.migration.documents[d] || []).some(n => n > 0));
+function details(app, mig) {
+  const box = h("details", {}, h("summary", {}, "More detail"));
+  const firsts = mig.first_by_lang || [];
+  if (firsts.length) {
+    box.append(h("h4", {}, "First time we see it, per language"));
+    box.append(h("ul", {}, firsts.map(f => h("li", {}, `${LANG[f.lang] || f.lang}: ${monthName(f.date.slice(0, 7))}, in ${dom(f.domain)}`))));
+    box.append(h("p", { class: "muted" }, "This only means first in our data: each source starts at a different date (see below)."));
+  }
+  const lags = mig.lags || [];
+  if (lags.length) {
+    box.append(h("h4", {}, "Which domain follows which"));
+    box.append(h("div", { class: "scroll" }, h("table", {},
+      h("tr", {}, ["Follower", "Leader", "Delay (months)", "Correlation", "Months compared"].map(x => h("th", {}, x))),
+      lags.map(l => h("tr", {}, [dom(l.follow), dom(l.lead), l.lag, l.r.toFixed(2), l.periods ?? ""].map(x => h("td", {}, x)))))));
+    box.append(h("p", { class: "muted" }, "Correlation goes from 0 (no relation) to 1 (identical pattern). Delays of 36 months are the limit of the search and are not shown in the summary."));
+  }
+  app.append(box);
 }
 
-function coverage(app) {
-  const SOURCE = { policy: "EUR-Lex (European Commission documents, English)",
-    parliament: "European Parliament plenary debates", news: "GDELT article counts", art: "" };
+function footer(app) {
+  const SOURCE = { policy: "European Commission documents (EUR-Lex, English)",
+    parliament: "European Parliament plenary debates", news: "GDELT news article counts" };
   const rows = Object.keys(D.meta.domains).map(d => {
     const docs = D.meta.corpus.filter(r => r.domain === d);
     const cnt = (D.meta.counts || []).filter(r => r.domain === d);
     const all = [...docs, ...cnt];
-    if (!all.length) return [dom(d), "no source yet", "", "", ""];
+    if (!all.length) return h("li", {}, `${dom(d)}: no source yet.`);
     const n = docs.reduce((a, r) => a + r.n, 0);
-    const first = all.map(r => r.first).sort()[0], last = all.map(r => r.last).sort().at(-1);
-    const langs = [...new Set(all.map(r => r.lang))].join(", ");
-    return [dom(d), SOURCE[d] || "", n ? n.toLocaleString("en") + " documents" : "counts only", `${first} to ${last}`, langs];
+    const first = all.map(r => r.first).sort()[0].slice(0, 4), last = all.map(r => r.last).sort().at(-1).slice(0, 4);
+    return h("li", {}, `${dom(d)}: ${SOURCE[d] || ""}, ${n ? n.toLocaleString("en") + " documents, " : ""}${first}–${last}.`);
   });
-  app.append(h("h3", {}, "Coverage"));
-  app.append(table(["Domain", "Source", "Size", "Dates", "Languages"], rows));
-  app.append(h("p", {}, `Periods with fewer than ${D.meta.min_docs_per_period ?? 5} documents in a domain are left blank.`));
-}
-
-function footer(app) {
-  coverage(app);
-  app.append(h("hr"), h("p", {}, h("small", {}, `Generated ${D.meta.generated}. Sources: ${D.meta.sources.join(", ")}. `,
-    "Corpus: " + D.meta.corpus.reduce((a, r) => a + r.n, 0).toLocaleString("en") + " documents. ",
-    "EUR-Lex and European Parliament texts are reused with attribution; only derived statistics are shown.")));
+  app.append(h("footer", {},
+    h("p", {}, h("strong", {}, "What we read")), h("ul", {}, rows),
+    h("p", {}, `Updated ${new Date(D.meta.generated).toLocaleDateString("en", { day: "numeric", month: "long", year: "numeric" })}. `,
+      "EUR-Lex and European Parliament texts are reused with attribution; only counts and short word lists are shown.")));
 }
 
 init();

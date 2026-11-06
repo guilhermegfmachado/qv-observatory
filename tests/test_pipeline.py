@@ -132,6 +132,20 @@ class PipelineTest(unittest.TestCase):
         raw = "<head><title>x</title></head><p>stren<span class='a'>gthening</span> resi\xadlience</p><p>next</p>"
         self.assertEqual(eurlex._strip_html(raw), "strengthening resilience next")
 
+    def test_prune_then_reingest_is_rescanned(self):
+        import subprocess
+        tmp = self.tmp / "prune.sqlite"
+        con = db.connect(tmp)
+        self.addCleanup(con.close)
+        doc = base.Document(source="eurlex", external_id="X:en", domain="policy", lang="en",
+                            date="2020-01-01", text="Resilience matters. " * 20)
+        base.insert(con, [doc]); mentions.run(con, self.cfg["_concepts"])
+        subprocess.run([sys.executable, "-m", "observatory", "--db", str(tmp), "prune", "--source", "eurlex"],
+                       cwd=ROOT, check=True, capture_output=True)
+        base.insert(con, [doc]); mentions.run(con, self.cfg["_concepts"])
+        n = con.execute("SELECT COUNT(*) FROM mentions WHERE concept='resilience'").fetchone()[0]
+        self.assertEqual(n, 1)
+
     def test_limit_never_splits_a_document(self):
         items = list(oie.candidates(self.con, self.cfg["_concepts"], 600, limit=3))
         doc = items[-1][0]

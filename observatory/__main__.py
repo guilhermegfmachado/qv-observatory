@@ -104,6 +104,10 @@ def main(argv=None):
         keep = tuple(l for l in args.keep_langs.split(",") if l) or ("",)
         q = f"DELETE FROM documents WHERE source=? AND lang NOT IN ({','.join('?' * len(keep))})"
         n = con.execute(q, (args.source, *keep)).rowcount
+        # Re-ingested documents get the same id, so their scan records must go too, or the
+        # mention scan would skip them as already done.
+        con.execute("CREATE TABLE IF NOT EXISTS _scanned (doc_id TEXT PRIMARY KEY)")
+        con.execute("DELETE FROM _scanned WHERE doc_id NOT IN (SELECT id FROM documents)")
         con.commit()
         print(f"pruned {n} {args.source} documents outside {', '.join(keep)}")
     elif args.cmd == "status":
